@@ -1,5 +1,3 @@
-"""PostgreSQL-backed DeletionStore (spec sections 8, 9, 11)."""
-
 from __future__ import annotations
 
 from datetime import timedelta

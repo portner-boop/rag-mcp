@@ -1,5 +1,3 @@
-"""Ports for the deletion pipeline (spec sections 7.7, 9, 11)."""
-
 from __future__ import annotations
 
 from typing import Protocol

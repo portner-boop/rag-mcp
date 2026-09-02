@@ -1,13 +1,3 @@
-"""Production hybrid ``search_knowledge`` (spec sections 7.1, 12.2).
-
-Pipeline: normalize -> active index config -> dense+sparse query embeddings ->
-dense+sparse Qdrant retrieval on the active index version -> deterministic RRF fusion +
-dedup -> rerank -> bounded cited results. Configurable dense-only / rerank fallbacks are
-reflected in ``search_meta``. The whole call is bounded by a per-call timeout;
-cancellation propagates to the in-flight embedding/Qdrant tasks. Non-ready / deleting /
-deleted corpus entries are excluded (invariant 11).
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -42,8 +32,8 @@ class SearchService:
         store: SearchStore,
         vectors: VectorSearch,
         embedding: SearchEmbedding,
-        settings,  # app.config.Settings
-        expander=None,  # app.search.ports.QueryExpander | None
+        settings,
+        expander=None,
     ) -> None:
         self._store = store
         self._vectors = vectors
@@ -102,8 +92,6 @@ class SearchService:
 
         final, reranked = await self._maybe_rerank(normalized, candidates, limit=payload.limit)
 
-        # Tier 3.1: only a low-confidence first pass pays for query expansion (multi-query /
-        # HyDE). Extra ranked lists are fused with the originals and the merged set re-ranked.
         expanded = False
         if self._should_expand(final, reranked):
             extra_lists = await self._expansion_lists(normalized, common)
@@ -159,8 +147,6 @@ class SearchService:
             log.warning("search.dense_embedding_unavailable")
         try:
             sv = (await self._embedding.sparse([query]))[0]
-            # A query of nothing but stopwords carries no lexical terms — skip the sparse
-            # branch instead of asking Qdrant to match an empty vector.
             sparse_vec = (sv.indices, sv.values) if sv.indices else None
         except _EMBED_ERRORS:
             log.warning("search.sparse_embedding_unavailable")
@@ -169,8 +155,6 @@ class SearchService:
             raise UpstreamError(
                 "Query embeddings unavailable", code=ErrorCode.EMBEDDING_TIMEOUT, retryable=True
             )
-        # Fallback rules (spec section 15): dense-only only if configured when sparse is
-        # down; sparse-only only if explicitly configured when dense is down.
         if sparse_vec is None and not self._settings.allow_dense_only_fallback:
             raise UpstreamError(
                 "Sparse query embedding unavailable and dense-only fallback is disabled",
@@ -186,7 +170,6 @@ class SearchService:
         return dense_vec, sparse_vec
 
     def _dense_query(self, query: str) -> str:
-        """Instruction-tuned dense models (Qwen3) expect a prefix on the query side only."""
         instruction = getattr(self._settings, "embedding_query_instruction", "")
         return f"{instruction}{query}" if instruction else query
 
@@ -210,11 +193,6 @@ class SearchService:
         return dense_hits, sparse_hits
 
     def _should_expand(self, final: list[FusedHit], reranked: bool) -> bool:
-        """Expand only when the first pass is low-confidence (Tier 3.1).
-
-        The rerank score is the confidence signal, so expansion needs the reranker to have
-        run — except when nothing was retrieved, where expansion is the only recourse.
-        """
         if self._expander is None or not getattr(self._settings, "enable_query_expansion", False):
             return False
         if not final:
@@ -260,7 +238,6 @@ class SearchService:
         return await self._retrieve(dense_vec, sparse_vec, common)
 
     async def _soft_representations(self, query: str):
-        """Best-effort dense+sparse for an expansion variant — skip a branch that fails."""
         dense_vec = None
         sparse_vec = None
         try:
@@ -290,7 +267,6 @@ class SearchService:
             resp = await self._embedding.rerank(query, docs, top_n=limit)
             metrics.rerank_duration_seconds.observe(time.perf_counter() - t0)
         except _EMBED_ERRORS:
-            # Reranker unavailable: return hybrid top-N with reranked=false (spec 15).
             metrics.rerank_fallback_total.inc()
             log.warning("search.rerank_fallback")
             return candidates, False
@@ -326,12 +302,6 @@ class SearchService:
         return results
 
     def _result_text(self, payload: dict) -> str:
-        """Whole table for a table hit (Tier 4.1), else the chunk text — both length-bounded.
-
-        A linearized row fact ranks precisely, but on its own gives the LLM only one row; when
-        the chunk belongs to a table we return the full table (header + neighbouring rows) so
-        the model can read the answer cell in context. Bounded by ``search_max_chunk_chars``.
-        """
         text = payload.get("text", "")
         if getattr(self._settings, "search_return_full_table", True):
             table_markdown = payload.get("table_markdown")

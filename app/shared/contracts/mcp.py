@@ -1,20 +1,9 @@
-"""MCP tool and internal operational I/O contracts (spec section 7).
-
-Only ``search_knowledge`` is chat-facing. All ``*Request``/``*Response`` types whose
-docstring says "internal" belong to the operational control plane and are never
-exposed via chat ``tools/list``.
-"""
-
 from __future__ import annotations
 
 from pydantic import Field, field_validator
 
 from app.shared.contracts import StrictModel
 from app.shared.enums import DocumentStatus
-
-# --------------------------------------------------------------------------------------
-# 7.1 search_knowledge (chat-facing)
-# --------------------------------------------------------------------------------------
 
 
 class SearchFilters(StrictModel):
@@ -64,7 +53,6 @@ class SearchMeta(StrictModel):
     sparse_candidates: int
     reranked: bool
     duration_ms: int
-    # True when a low-confidence first pass triggered query expansion (multi-query / HyDE).
     expanded: bool = False
 
 
@@ -72,11 +60,6 @@ class SearchKnowledgeOutput(StrictModel):
     query_id: str
     results: list[SearchResult]
     search_meta: SearchMeta
-
-
-# --------------------------------------------------------------------------------------
-# 7.2 / 7.3 internal read
-# --------------------------------------------------------------------------------------
 
 
 class FindDocumentsInput(StrictModel):
@@ -119,11 +102,6 @@ class DocumentMetadata(DocumentRecord):
     updated_at: str | None = None
 
 
-# --------------------------------------------------------------------------------------
-# 7.4 prepare_document_upload (internal)
-# --------------------------------------------------------------------------------------
-
-
 class PrepareUploadInput(StrictModel):
     filename: str = Field(min_length=1, max_length=512)
     content_type: str = Field(min_length=1, max_length=255)
@@ -139,11 +117,6 @@ class PrepareUploadOutput(StrictModel):
     expires_at: str
 
 
-# --------------------------------------------------------------------------------------
-# 7.5 / 7.6 ingestion (internal)
-# --------------------------------------------------------------------------------------
-
-
 class StartIngestionInput(StrictModel):
     document_id: str
     checksum: str | None = None
@@ -153,7 +126,7 @@ class StartIngestionInput(StrictModel):
 class StartIngestionOutput(StrictModel):
     document_id: str
     job_id: str
-    status: str  # QUEUED
+    status: str
 
 
 class GetIngestionStatusInput(StrictModel):
@@ -179,11 +152,6 @@ class IngestionStatusOutput(StrictModel):
     error: dict | None = None
 
 
-# --------------------------------------------------------------------------------------
-# 7.7 delete_document (internal)
-# --------------------------------------------------------------------------------------
-
-
 class DeleteDocumentInput(StrictModel):
     document_id: str
     requested_by: str
@@ -193,12 +161,7 @@ class DeleteDocumentInput(StrictModel):
 class DeleteDocumentOutput(StrictModel):
     document_id: str
     job_id: str
-    status: str  # DELETING
-
-
-# --------------------------------------------------------------------------------------
-# 7.8 reindex_document (internal)
-# --------------------------------------------------------------------------------------
+    status: str
 
 
 class ReindexDocumentInput(StrictModel):
@@ -210,13 +173,8 @@ class ReindexDocumentInput(StrictModel):
 class ReindexDocumentOutput(StrictModel):
     document_id: str
     job_id: str
-    status: str  # QUEUED
+    status: str
     target_index_version: int
-
-
-# --------------------------------------------------------------------------------------
-# 7.9 create_download_url (internal)
-# --------------------------------------------------------------------------------------
 
 
 class CreateDownloadUrlInput(StrictModel):

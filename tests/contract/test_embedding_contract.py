@@ -1,5 +1,3 @@
-"""Embedding API contract (spec section 13) exercised against the fake API."""
-
 from __future__ import annotations
 
 from fastapi.testclient import TestClient
@@ -21,7 +19,7 @@ def test_dense_response_matches_contract() -> None:
     assert resp.status_code == 200
     body = DenseEmbeddingResponse.model_validate(resp.json())
     assert body.dimension == DIMENSION
-    assert len(body.vectors) == 2  # vector count == text count
+    assert len(body.vectors) == 2
     assert all(len(v) == DIMENSION for v in body.vectors)
     assert body.usage.texts == 2
 
@@ -47,4 +45,4 @@ def test_rerank_returns_ids_from_supplied_set_only() -> None:
 
 def test_dense_rejects_unknown_field() -> None:
     resp = client.post("/v1/embeddings/dense", json={"model": "m", "texts": ["a"], "bogus": 1})
-    assert resp.status_code == 422  # StrictModel extra=forbid
+    assert resp.status_code == 422

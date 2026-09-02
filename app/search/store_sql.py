@@ -1,5 +1,3 @@
-"""PostgreSQL-backed SearchStore (spec section 12.2)."""
-
 from __future__ import annotations
 
 from app.ingestion.ports import IndexConfigState

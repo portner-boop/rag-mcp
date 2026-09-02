@@ -1,15 +1,3 @@
-"""Query expander over an OpenAI-shaped chat gateway (search-improvement S2, Tier 3.1).
-
-One ``POST {base}/chat/completions`` turns a user query into a few retrieval-friendly
-paraphrases and, optionally, a short hypothetical answer passage (HyDE) — extra query
-strings whose embeddings pull in relevant chunks the literal query missed. This runs only
-on the selective low-confidence path, so its cost is not paid on the common case.
-
-The model output is untrusted text: we read it as newline-separated query strings, never as
-instructions. A malformed or failed response degrades to "no expansion" rather than an error
-that breaks search.
-"""
-
 from __future__ import annotations
 
 import httpx
@@ -111,7 +99,6 @@ def _first_message_content(data: dict) -> str:
 
 
 def _parse_lines(content: str, original: str, *, limit: int) -> list[str]:
-    """Newline-separated query strings, de-listed, de-duplicated, minus the original."""
     seen: dict[str, None] = {}
     original_norm = original.strip().casefold()
     for raw in content.splitlines():

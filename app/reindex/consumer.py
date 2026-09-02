@@ -1,5 +1,3 @@
-"""Reindex queue consumer (spec sections 10, 12.3)."""
-
 from __future__ import annotations
 
 from app.queueing.consumer import BaseConsumer

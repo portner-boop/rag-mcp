@@ -1,10 +1,3 @@
-"""Dead-letter queue inspect + redrive under the operational identity (spec 10; D04).
-
-Inspect peeks messages without consuming them (get then requeue). Redrive republishes
-dead-lettered messages to the domain command exchange on their original routing key; the
-original ``event_id`` is preserved so business idempotency still holds.
-"""
-
 from __future__ import annotations
 
 import json
@@ -22,7 +15,7 @@ class DlqService:
         channel: AbstractRobustChannel,
         exchange: AbstractExchange,
         dlq_name: str,
-        routing_key,  # settings.routing_key
+        routing_key,
     ) -> None:
         self._channel = channel
         self._exchange = exchange
@@ -50,7 +43,6 @@ class DlqService:
                     "routing_key": message.routing_key,
                 }
             )
-        # Requeue everything we peeked so inspect is non-destructive.
         for message in seen:
             await message.nack(requeue=True)
         return out
@@ -62,7 +54,6 @@ class DlqService:
             message = await queue.get(no_ack=False, fail=False)
             if message is None:
                 break
-            # DLQ routing key is the queue "kind" (ingestion|deletion|reindex).
             kind = message.routing_key
             await self._exchange.publish(message, routing_key=self._routing_key(kind))
             await message.ack()

@@ -1,9 +1,3 @@
-"""Ports for the search engine (spec section 12.2).
-
-Written against Protocols so the pipeline runs on real adapters (Postgres/Qdrant/
-Embedding) and in-memory fakes for smoke/tests.
-"""
-
 from __future__ import annotations
 
 from typing import Protocol
@@ -57,11 +51,4 @@ class SearchEmbedding(Protocol):
 
 
 class QueryExpander(Protocol):
-    """Generates alternative query strings for a low-confidence retrieval (Tier 3.1).
-
-    Returns paraphrase variants and, when ``hyde`` is set, a hypothetical answer passage
-    (HyDE). Used only on the selective expansion path, so its (LLM) cost is not paid on the
-    common case. An empty list means "no expansion available" — the caller degrades quietly.
-    """
-
     async def expand(self, query: str, *, num_variants: int, hyde: bool) -> list[str]: ...

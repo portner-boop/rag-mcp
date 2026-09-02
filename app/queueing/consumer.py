@@ -1,14 +1,3 @@
-"""Generic queue consumer with manual ack, inbox idempotency, retry and DLQ (spec 10, 11).
-
-Shared by the ingestion, deletion and reindex workers. A message is acked only after the
-pipeline's durable effects committed (the pipeline records the inbox row on terminal
-success/failure). Cross-domain payloads are rejected and alerted (invariant 12). Retry
-follows the configured backoff; exhausted attempts or non-retryable errors are dead-lettered.
-
-Metric emission is delegated to hooks so each worker can report its spec-specific series
-(ingestion_* vs the generic worker_* counters).
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -45,14 +34,12 @@ class BaseConsumer:
         self._retry_schedule = retry_schedule
         self._jitter = retry_jitter
 
-    # --- to implement in subclasses ----------------------------------------------------
     async def run_pipeline(self, event: EventEnvelope) -> PipelineResult:
         raise NotImplementedError
 
     def build_failed_event(self, event: EventEnvelope, result: PipelineResult) -> dict:
         raise NotImplementedError
 
-    # --- metric hooks (override for spec-specific series) ------------------------------
     def _metric_success(self, result: PipelineResult) -> None:
         metrics.worker_jobs_total.labels(consumer=self.consumer_name, result=result.status).inc()
 
@@ -65,7 +52,6 @@ class BaseConsumer:
     def _metric_dlq(self) -> None:
         metrics.worker_dlq_total.labels(consumer=self.consumer_name).inc()
 
-    # --- dispatch ----------------------------------------------------------------------
     async def handle(self, message: AbstractIncomingMessage) -> None:
         headers = message.headers or {}
         set_current(parse_traceparent(headers.get("traceparent"), headers.get("trace_id")))

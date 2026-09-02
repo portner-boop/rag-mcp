@@ -1,9 +1,3 @@
-"""Internal presigned download URLs (spec section 7.9).
-
-TTL is capped by config. The document must be non-deleted and its original object must
-exist. Object keys are never returned; only a short-lived GET URL.
-"""
-
 from __future__ import annotations
 
 from datetime import timedelta

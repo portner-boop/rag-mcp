@@ -1,11 +1,3 @@
-"""Service identities and scopes (spec sections 2 and 6).
-
-The chat orchestrator authenticates with a token whose only scope is
-``knowledge:search``. The internal operational control plane authenticates with a
-separate token carrying corpus-maintenance scopes. The two tokens are distinct and
-cannot substitute for each other (invariant 2).
-"""
-
 from __future__ import annotations
 
 from enum import Enum
@@ -17,9 +9,7 @@ class Identity(str, Enum):
 
 
 class Scope(str, Enum):
-    # Chat-facing scope.
     KNOWLEDGE_SEARCH = "knowledge:search"
-    # Operational corpus scopes.
     CORPUS_READ = "corpus:read"
     CORPUS_WRITE = "corpus:write"
     CORPUS_DELETE = "corpus:delete"

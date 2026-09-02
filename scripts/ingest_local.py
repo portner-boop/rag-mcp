@@ -1,13 +1,3 @@
-"""Push a local file through the operational ingestion path (spec 7.4 → 7.6).
-
-The chat MCP surface can only search; putting a document into the corpus goes through
-the ops identity: prepare-upload → PUT to the presigned S3 URL → start ingestion → poll.
-
-    uv run python scripts/ingest_local.py ./handbook.md
-    uv run python scripts/ingest_local.py ./handbook.md --ops-url http://127.0.0.1:8090 \
-        --token ops-dev --content-type text/markdown
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -40,7 +30,6 @@ def main() -> int:
     parser.add_argument("--ops-url", default="http://127.0.0.1:8090")
     parser.add_argument("--token", default="ops-dev", help="ops service token (not the chat one)")
     parser.add_argument("--content-type", default=None)
-    # documents.created_by is a UUID column: a free-form name fails with a 500.
     parser.add_argument("--created-by", default="00000000-0000-4000-8000-000000000001")
     parser.add_argument("--timeout-seconds", type=float, default=180.0)
     args = parser.parse_args()
@@ -87,7 +76,6 @@ def main() -> int:
             {
                 "document_id": prepared["document_id"],
                 "checksum": checksum,
-                # Re-running the same file is one effect, not two (invariant 6).
                 "idempotency_key": f"ingest:{prepared['document_id']}:{checksum}",
             },
         )

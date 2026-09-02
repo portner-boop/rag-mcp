@@ -1,14 +1,3 @@
-"""Production document parser adapters (spec sections 3, 11, 16).
-
-Rich formats go through **Docling** (PDF, DOCX, PPTX → canonical Markdown, layout-aware);
-spreadsheets go through **openpyxl** (XLSX → Markdown tables). Document text is untrusted
-data, never executable instructions: neither backend evaluates embedded macros or scripts.
-Registered by content type in `default_registry`.
-
-Docling loads layout models on first use, so the converter is a lazily-built process-wide
-singleton — construction is deferred until the worker actually parses a rich document.
-"""
-
 from __future__ import annotations
 
 import io
@@ -24,7 +13,6 @@ _converter = None
 
 
 def _get_converter():
-    """Process-wide Docling converter; built once, reused for every document."""
     global _converter
     if _converter is None:
         from docling.document_converter import DocumentConverter
@@ -34,8 +22,6 @@ def _get_converter():
 
 
 class DoclingParser:
-    """PDF / DOCX / PPTX → Markdown via Docling."""
-
     version = "docling-1"
 
     def parse(self, data: bytes, *, filename: str) -> ParsedDocument:
@@ -59,8 +45,6 @@ class DoclingParser:
 
 
 class XlsxParser:
-    """XLSX → Markdown tables via openpyxl (one section per sheet)."""
-
     version = "xlsx-1"
 
     def parse(self, data: bytes, *, filename: str) -> ParsedDocument:

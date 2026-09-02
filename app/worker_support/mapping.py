@@ -1,5 +1,3 @@
-"""ORM -> pipeline DTO mapping shared by the ingestion/deletion/reindex SQL stores."""
-
 from __future__ import annotations
 
 from app.ingestion.ports import DocumentState

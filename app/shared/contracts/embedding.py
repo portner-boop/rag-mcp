@@ -1,8 +1,3 @@
-"""Shared Embedding API contract (spec section 13).
-
-The API is stateless: it never stores text and has no Qdrant/S3 credentials.
-"""
-
 from __future__ import annotations
 
 from pydantic import Field

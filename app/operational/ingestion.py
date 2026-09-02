@@ -1,10 +1,3 @@
-"""Internal ingestion control-plane use cases (spec sections 7.4, 7.5, 7.6).
-
-These run under the operational identity only. ``start_document_ingestion`` writes the
-job and the ``DocumentIngestionRequested`` outbox row in one atomic transaction; the
-outbox relay later publishes it (spec section 8.2, 10).
-"""
-
 from __future__ import annotations
 
 from datetime import timedelta
@@ -44,7 +37,6 @@ class IngestionService:
         self._s3 = object_store
         self._settings = settings
 
-    # --- 7.4 ---------------------------------------------------------------------------
     async def prepare_document_upload(self, payload: PrepareUploadInput) -> PrepareUploadOutput:
         s = self._settings
         if payload.size > s.upload_max_bytes:
@@ -72,8 +64,6 @@ class IngestionService:
             )
             document_id = doc.id
 
-        # Sign only after the DB row exists (spec 7.4 / acceptance: "upload init
-        # succeeds only after DB row and scoped URL exist").
         upload_url = await self._s3.presign_put(
             key, content_type=payload.content_type, expires_in=s.presigned_upload_ttl_seconds
         )
@@ -85,7 +75,6 @@ class IngestionService:
             expires_at=to_rfc3339(expires_at),
         )
 
-    # --- 7.5 ---------------------------------------------------------------------------
     async def start_document_ingestion(self, payload: StartIngestionInput) -> StartIngestionOutput:
         async with self._db.session() as session:
             docs = DocumentRepository(session)
@@ -94,7 +83,6 @@ class IngestionService:
             events = EventRepository(session)
             index_configs = IndexConfigRepository(session)
 
-            # Idempotency: same key + same request -> same job; changed -> conflict.
             existing = await jobs.get_by_idempotency_key(payload.idempotency_key)
             if existing is not None:
                 if existing.document_id != payload.document_id:
@@ -114,7 +102,6 @@ class IngestionService:
 
             doc = await docs.get_for_update(payload.document_id)
 
-            # Verify uploaded object exists and size matches metadata.
             meta = await self._s3.head(doc.original_object_key)
             if meta.size != doc.size:
                 raise ValidationError(
@@ -128,7 +115,6 @@ class IngestionService:
 
             active = await index_configs.get_active_or_raise()
 
-            # UPLOADING -> UPLOADED -> QUEUED (spec section 9).
             if DocumentStatus(doc.status) is DocumentStatus.UPLOADING:
                 await docs.transition(
                     doc, allowed_from={DocumentStatus.UPLOADING}, to=DocumentStatus.UPLOADED
@@ -176,7 +162,6 @@ class IngestionService:
                 document_id=doc.id, job_id=job.id, status=JobStatus.QUEUED.value
             )
 
-    # --- 7.6 ---------------------------------------------------------------------------
     async def get_ingestion_status(self, payload: GetIngestionStatusInput) -> IngestionStatusOutput:
         async with self._db.session() as session:
             jobs = IngestionJobRepository(session)

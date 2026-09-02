@@ -1,5 +1,3 @@
-"""Ports for the reindex pipeline (spec sections 7.8, 12.3)."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass

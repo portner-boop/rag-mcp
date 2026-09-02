@@ -1,15 +1,3 @@
-"""Run the retrieval-eval harness on a golden set (search-improvement S2, Tier 4.2).
-
-Deterministic, infra-free: builds the exact units ingestion would index (prose chunks +
-linearized table facts) and ranks them with the in-process BM25 encoder (real stemming),
-then reports recall@k / MRR. Exits non-zero if recall@k falls below the threshold, so it
-doubles as a CI gate.
-
-    uv run python scripts/run_eval.py
-    uv run python scripts/run_eval.py --k 10 --min-recall 1.0
-    uv run python scripts/run_eval.py --gold tests/eval/gold/teo.json
-"""
-
 from __future__ import annotations
 
 import argparse

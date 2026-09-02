@@ -1,10 +1,3 @@
-"""Worker mode: wire adapters, the pipeline factory and the queue consumer, then run.
-
-The worker consumes the ingestion queue with manual acknowledgements (spec sections 10,
-11). It shares the same storage adapters and ingestion engine as the server; only the
-transport differs.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -58,8 +51,6 @@ class WorkerContainer:
             collection=settings.qdrant_collection,
             timeout=settings.qdrant_timeout_seconds,
         )
-        # Same factory as the server: documents must be embedded by exactly the model
-        # queries are embedded with, or retrieval compares vectors from two spaces.
         self.embedding = build_embedding(settings)
         self.vector_index = QdrantVectorIndex(self.qdrant)
         self.parser_registry = default_registry()
@@ -189,14 +180,12 @@ async def run(settings: Settings | None = None) -> None:
         except NotImplementedError:  # pragma: no cover - non-posix
             pass
 
-    # Consume all three command queues with manual ack (spec sections 10, 11).
     await topology.queues["ingestion"].consume(container.make_consumer().handle, no_ack=False)
     await topology.queues["deletion"].consume(
         container.make_deletion_consumer().handle, no_ack=False
     )
     await topology.queues["reindex"].consume(container.make_reindex_consumer().handle, no_ack=False)
 
-    # Stale upload/job/lease recovery loop (D04).
     recovery = RecoveryService(
         database=container.database, publisher=Publisher(topology.exchange), settings=settings
     )

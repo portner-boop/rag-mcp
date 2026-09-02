@@ -1,12 +1,3 @@
-"""Smoke check: full ingestion pipeline end-to-end on in-memory fakes (D02 checklist).
-
-Proves: a document reaches READY only after verified points exist; a repeated delivery
-produces no double effect (idempotency); the ingested points are retrievable by a dense
-query (reference vertical, spec section 20 Stage 0).
-
-Run: uv run python scripts/smoke_ingestion.py
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -111,7 +102,6 @@ async def run() -> None:
 
     print("ingestion pipeline smoke:")
 
-    # --- first delivery ---
     result = await _new_pipeline(store, s3, vectors, embedding).run(event)
     assert result.status == "completed", result
     assert result.chunk_count > 0
@@ -128,7 +118,6 @@ async def run() -> None:
     assert len(completed) == 1, "exactly one completed event"
     print(f"  OK  READY after verified upsert: {result.chunk_count} chunks / {point_count} points")
 
-    # --- duplicate delivery: idempotency, no double effect ---
     result2 = await _new_pipeline(store, s3, vectors, embedding).run(event)
     assert result2.status == "duplicate", result2
     assert await vectors.count_for_document(document_id, index_version=1) == point_count
@@ -144,7 +133,6 @@ async def run() -> None:
     )
     print("  OK  repeated delivery produced no double effect (inbox idempotency)")
 
-    # --- reference vertical: the ingested content is retrievable by dense query ---
     query_vec = dense_vector("How is unused leave transferred?", DIMENSION)
     hits = await vectors.dense_search(vector=query_vec, limit=3, index_version=1)
     assert hits, "dense search returned no points"
@@ -200,7 +188,6 @@ async def _run_failures() -> None:
         qdrant_collection="hr-knowledge",
     )
 
-    # Unsupported content type -> terminal, non-retryable, no points.
     store = FakeIngestionStore(active_config=config)
     s3, vectors, embedding = FakeObjectStore(), FakeVectorIndex(), FakeEmbedding(DIMENSION)
     document_id, _job_id, event = _seed_single(
@@ -212,7 +199,6 @@ async def _run_failures() -> None:
     assert await vectors.count_for_document(document_id, index_version=1) == 0
     print(f"  OK  unsupported file fails terminally at {result.stage} (no points written)")
 
-    # Cancellation between stages -> non-retryable stop, document not READY.
     store = FakeIngestionStore(active_config=config)
     s3, vectors, embedding = FakeObjectStore(), FakeVectorIndex(), FakeEmbedding(DIMENSION)
     document_id, job_id, event = _seed_single(

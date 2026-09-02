@@ -1,5 +1,3 @@
-"""Shared pytest fixtures + Hypothesis profile for the D05 suite (spec section 18)."""
-
 from __future__ import annotations
 
 import pytest

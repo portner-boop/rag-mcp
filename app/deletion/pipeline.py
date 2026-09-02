@@ -1,11 +1,3 @@
-"""Deletion pipeline (spec sections 7.7, 11 compensation).
-
-Idempotently removes a document's Qdrant points and S3 objects, then marks metadata
-DELETED. A missing point/object is treated as success so a retry after a partial delete
-converges. The document is already excluded from search from the moment it entered
-DELETING (invariant 11). Terminal failure -> DELETE_FAILED, which a retry resumes.
-"""
-
 from __future__ import annotations
 
 import structlog
@@ -53,13 +45,11 @@ class DeletionPipeline:
                 job_id, document_id, owner=self._owner, lease_ttl_seconds=self._lease_ttl
             )
 
-            # Qdrant points (all versions) — idempotent.
             stage = "QDRANT_DELETE"
             await self._store.set_stage(job_id, stage=stage, progress=30)
             await self._heartbeat(job_id)
             await self._vectors.delete_document_all(document_id)
 
-            # S3 objects — idempotent (missing = success).
             stage = "S3_DELETE"
             await self._store.set_stage(job_id, stage=stage, progress=60)
             await self._heartbeat(job_id)
@@ -67,7 +57,6 @@ class DeletionPipeline:
                 if key and await self._s3.exists(key):
                     await self._s3.delete(key)
 
-            # Verify absence (spec: delete succeeds only when points/objects are absent).
             stage = "VERIFYING"
             await self._store.set_stage(job_id, stage=stage, progress=85)
             remaining = await self._vectors.count_all_for_document(document_id)

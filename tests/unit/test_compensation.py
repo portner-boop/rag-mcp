@@ -1,5 +1,3 @@
-"""Compensation: idempotent delete-on-missing and reindex temp-point cleanup (spec 11, 12.3)."""
-
 from __future__ import annotations
 
 from app.deletion.pipeline import DeletionPipeline
@@ -57,7 +55,7 @@ async def test_delete_on_already_missing_artifacts_succeeds() -> None:
         requested_by="admin",
     )
     result = await pipeline.run(event)
-    assert result.status == "completed"  # missing points/objects treated as success
+    assert result.status == "completed"
     assert store.doc.status == DocumentStatus.DELETED.value
 
 
@@ -91,7 +89,6 @@ async def test_reindex_verify_failure_cleans_temp_target_points() -> None:
     )
     vectors = FakeVectorIndex()
 
-    # Force verification to see zero points at the target version after upsert.
     async def _count_zero(document_id, *, index_version):
         return 0
 
@@ -122,6 +119,5 @@ async def test_reindex_verify_failure_cleans_temp_target_points() -> None:
     )
     result = await pipeline.run(event)
     assert result.status == "failed" and result.retryable
-    assert store.active_version == 1  # never cut over
-    # Temporary target points were compensated away.
+    assert store.active_version == 1
     assert all(p.payload.get("index_version") != 2 for p in vectors.points.values())

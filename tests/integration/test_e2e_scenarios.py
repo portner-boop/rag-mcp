@@ -1,10 +1,3 @@
-"""End-to-end scenarios on in-memory fakes (spec section 18 required E2E 1-8).
-
-These exercise the real ingestion/search/deletion/reindex engines wired together; only
-the external stores/embeddings are faked. Real-infra (Testcontainers) variants live in
-``test_real_infra.py`` (skipped unless RUN_INTEGRATION=1).
-"""
-
 from __future__ import annotations
 
 from app.deletion.pipeline import DeletionPipeline
@@ -41,7 +34,6 @@ async def _ingest_ready():
     return setup, result
 
 
-# --- 1. ops ingestion -> READY -> chat search with citation metadata ------------------
 async def test_scenario_1_ingest_then_search_with_citations() -> None:
     setup, result = await _ingest_ready()
     svc = search_service(setup.vectors, setup.embedding, existing_ids={setup.document_id})
@@ -56,7 +48,6 @@ async def test_scenario_1_ingest_then_search_with_citations() -> None:
     assert out.search_meta.duration_ms >= 0
 
 
-# --- 2. duplicate ingestion delivery -> one effect ------------------------------------
 async def test_scenario_2_duplicate_ingestion_one_effect() -> None:
     setup, first = await _ingest_ready()
     count1 = await setup.vectors.count_for_document(setup.document_id, index_version=1)
@@ -67,7 +58,6 @@ async def test_scenario_2_duplicate_ingestion_one_effect() -> None:
     assert len(completed) == 1
 
 
-# --- 3. embedding failure -> retry/recovery, never a false READY ----------------------
 async def test_scenario_3_embedding_failure_then_recovery() -> None:
     setup = ingestion_setup(text=POLICY)
 
@@ -79,24 +69,21 @@ async def test_scenario_3_embedding_failure_then_recovery() -> None:
     assert failed.status == "failed" and failed.retryable
     assert setup.store.docs[setup.document_id].state.status != DocumentStatus.READY.value
 
-    # Recover: healthy embedding, same event -> READY (no double effect, still idempotent).
     setup.embedding = FakeEmbedding(DIMENSION)
     recovered = await build_ingestion_pipeline(setup).run(setup.event)
     assert recovered.status == "completed"
     assert setup.store.docs[setup.document_id].state.status == DocumentStatus.READY.value
 
 
-# --- 4. hybrid search -> bounded reranked result --------------------------------------
 async def test_scenario_4_hybrid_bounded_reranked() -> None:
     setup, _ = await _ingest_ready()
     svc = search_service(setup.vectors, setup.embedding, existing_ids={setup.document_id})
     out = await svc.search_knowledge(SearchKnowledgeInput(query="leave transfer", limit=2))
-    assert len(out.results) <= 2  # bounded by limit
+    assert len(out.results) <= 2
     assert out.search_meta.reranked is True
     assert out.search_meta.dense_candidates > 0 and out.search_meta.sparse_candidates > 0
 
 
-# --- 5. reranker unavailable -> declared fallback -------------------------------------
 async def test_scenario_5_rerank_fallback_declared() -> None:
     setup, _ = await _ingest_ready()
 
@@ -107,20 +94,17 @@ async def test_scenario_5_rerank_fallback_declared() -> None:
     svc = search_service(setup.vectors, setup.embedding, existing_ids={setup.document_id})
     out = await svc.search_knowledge(SearchKnowledgeInput(query="leave transfer", limit=5))
     assert out.results
-    assert out.search_meta.reranked is False  # fallback declared in meta
+    assert out.search_meta.reranked is False
 
 
-# --- 6. delete -> immediate search exclusion -> complete cleanup ----------------------
 async def test_scenario_6_delete_excludes_then_cleans_up() -> None:
     setup, _ = await _ingest_ready()
     doc_id = setup.document_id
 
-    # Immediate exclusion: the document is marked excluded before its points are removed.
     svc = search_service(setup.vectors, setup.embedding, existing_ids={doc_id}, excluded={doc_id})
     out = await svc.search_knowledge(SearchKnowledgeInput(query="leave transfer", limit=5))
     assert all(r.document_id != doc_id for r in out.results)
 
-    # Complete cleanup by the deletion pipeline.
     doc_state = setup.store.docs[doc_id].state
     doc_state.status = DocumentStatus.DELETING.value
     del_store = FakeDeletionStore(doc=doc_state)
@@ -206,7 +190,6 @@ def _reindex_scenario(setup, *, embedding):
     return store, pipeline, event
 
 
-# --- 7. reindex failure -> old version still searchable -------------------------------
 async def test_scenario_7_reindex_failure_keeps_old_searchable() -> None:
     setup, _ = await _ingest_ready()
 
@@ -217,8 +200,7 @@ async def test_scenario_7_reindex_failure_keeps_old_searchable() -> None:
     store, pipeline, event = _reindex_scenario(setup, embedding=_Broken(DIMENSION))
     result = await pipeline.run(event)
     assert result.status == "failed"
-    assert store.active_version == 1  # old version stays active
-    # Old version (1) still searchable.
+    assert store.active_version == 1
     svc = search_service(
         setup.vectors, setup.embedding, active_version=1, existing_ids={setup.document_id}
     )
@@ -226,17 +208,13 @@ async def test_scenario_7_reindex_failure_keeps_old_searchable() -> None:
     assert any(r.document_id == setup.document_id for r in out.results)
 
 
-# --- 8. reindex success -> atomic cutover -> old cleanup ------------------------------
 async def test_scenario_8_reindex_success_cutover_and_cleanup() -> None:
     setup, _ = await _ingest_ready()
     store, pipeline, event = _reindex_scenario(setup, embedding=setup.embedding)
     result = await pipeline.run(event)
     assert result.status == "completed"
-    assert store.active_version == 2  # cutover after verify
-    assert (
-        await setup.vectors.count_for_document(setup.document_id, index_version=1) == 0
-    )  # old gone
-    # New active version (2) is searchable.
+    assert store.active_version == 2
+    assert await setup.vectors.count_for_document(setup.document_id, index_version=1) == 0
     svc = search_service(
         setup.vectors, setup.embedding, active_version=2, existing_ids={setup.document_id}
     )

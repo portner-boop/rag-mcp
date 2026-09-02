@@ -1,5 +1,3 @@
-"""The search_knowledge tool — a one-line delegate (bpmn-mcp tool contract)."""
-
 from __future__ import annotations
 
 from app.shared.contracts.mcp import SearchFilters

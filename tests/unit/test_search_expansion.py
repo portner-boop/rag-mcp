@@ -1,5 +1,3 @@
-"""Selective query expansion: trigger only on a low-confidence first pass (Tier 3.1)."""
-
 from __future__ import annotations
 
 import pytest
@@ -77,7 +75,6 @@ async def _search(service: SearchService, query: str):
 async def test_low_confidence_first_pass_triggers_expansion() -> None:
     expander = FakeExpander(variants=["alpha beta"])
     service, _ = _service(expander, _Settings())
-    # "zeta" shares no words with the only doc -> rerank score 0 < threshold -> expand.
     out = await _search(service, "zeta")
     assert out.search_meta.expanded is True
     assert expander.calls == 1
@@ -87,7 +84,6 @@ async def test_low_confidence_first_pass_triggers_expansion() -> None:
 async def test_confident_first_pass_does_not_expand() -> None:
     expander = FakeExpander(variants=["whatever"])
     service, _ = _service(expander, _Settings())
-    # Query equals the doc text -> rerank score 1.0 >= threshold -> no expansion, no LLM call.
     out = await _search(service, "alpha beta gamma")
     assert out.search_meta.expanded is False
     assert expander.calls == 0
@@ -106,9 +102,9 @@ async def test_flag_off_never_expands_even_on_low_score() -> None:
 
 @pytest.mark.asyncio
 async def test_empty_expansion_degrades_quietly() -> None:
-    expander = FakeExpander(variants=[])  # expander reachable but yields nothing
+    expander = FakeExpander(variants=[])
     service, _ = _service(expander, _Settings())
     out = await _search(service, "zeta")
-    assert out.search_meta.expanded is False  # no extra lists -> not marked expanded
-    assert expander.calls == 1  # it was consulted
-    assert out.results  # the original result is still returned
+    assert out.search_meta.expanded is False
+    assert expander.calls == 1
+    assert out.results

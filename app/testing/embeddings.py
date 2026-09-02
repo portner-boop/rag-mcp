@@ -1,9 +1,3 @@
-"""Deterministic fake embeddings shared by the fake API and in-process fakes.
-
-Vectors depend only on the input text, so ingestion and query embeddings match and the
-same text always yields the same vector (needed for reproducible smoke checks).
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +15,6 @@ def dense_vector(text: str, dimension: int) -> list[float]:
     values: list[float] = []
     state = seed
     for _ in range(dimension):
-        # Deterministic LCG (glibc constants).
         state = (1103515245 * state + 12345) & 0x7FFFFFFF
         values.append((state / 0x7FFFFFFF) - 0.5)
     norm = math.sqrt(sum(v * v for v in values)) or 1.0

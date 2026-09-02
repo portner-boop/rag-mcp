@@ -1,11 +1,3 @@
-"""Server mode: chat MCP surface + internal operational API (spec sections 6, 7).
-
-The chat MCP (Streamable HTTP) mounts `public_mcp`, exposing only `search_knowledge`,
-guarded by an ASGI middleware that authenticates the chat token (scope
-`knowledge:search`). The operational control plane is a separate FastAPI app on a
-separate port with the ops identity (invariant 2). Health endpoints are unauthenticated.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -33,8 +25,6 @@ _HEALTH_PREFIX = "/health"
 
 
 class ChatAuthMiddleware(BaseHTTPMiddleware):
-    """Authenticate the chat token and bind trace context; exempt health routes."""
-
     def __init__(self, app, container: Container) -> None:  # noqa: ANN001
         super().__init__(app)
         self._container = container

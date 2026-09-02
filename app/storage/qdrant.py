@@ -1,10 +1,3 @@
-"""Qdrant adapter with named dense/sparse vectors (spec section 12).
-
-The dense vector dimension must equal the active index config. Points carry immutable
-citation payload and are addressed by stable IDs (invariant 9). This adapter only ever
-touches this deployment's own collection (invariant 3, 12).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,7 +10,6 @@ from app.shared.errors import ConfigurationError, UpstreamError
 DENSE_VECTOR = "dense"
 SPARSE_VECTOR = "sparse"
 
-# Payload fields that get a dedicated index for filtering (spec section 12.1).
 _PAYLOAD_INDEXES: dict[str, models.PayloadSchemaType] = {
     "document_id": models.PayloadSchemaType.KEYWORD,
     "document_version": models.PayloadSchemaType.INTEGER,
@@ -60,12 +52,6 @@ class QdrantIndex:
         await self._client.close()
 
     async def ensure_collection(self, *, dense_dimension: int, sparse_idf: bool = False) -> None:
-        """Create the collection with named dense+sparse vectors if it does not exist.
-
-        ``sparse_idf`` turns on Qdrant's ``modifier: idf`` for the sparse vector, which is
-        what makes a BM25 term-frequency vector score as actual BM25: the IDF factor is
-        computed by Qdrant across the collection at query time.
-        """
         sparse_params = models.SparseVectorParams(
             index=models.SparseIndexParams(),
             modifier=models.Modifier.IDF if sparse_idf else None,
@@ -94,16 +80,11 @@ class QdrantIndex:
                 except Exception:  # noqa: BLE001 - index may already exist
                     pass
         except ConfigurationError:
-            raise  # a real mismatch must surface with its own message, not as "upstream"
+            raise
         except Exception as exc:  # noqa: BLE001
             raise UpstreamError("Qdrant ensure_collection failed") from exc
 
     async def validate_schema(self, *, dense_dimension: int) -> None:
-        """Confirm the live collection matches the active config (D01 checklist).
-
-        Raises ``ConfigurationError`` if the named dense vector is absent or its
-        dimension differs from the active index config (spec section 8.3, 12.1).
-        """
         try:
             info = await self._client.get_collection(self._collection)
         except Exception as exc:  # noqa: BLE001
@@ -138,11 +119,6 @@ class QdrantIndex:
     async def _verify_collection(
         self, dense_dimension: int, sparse_params: models.SparseVectorParams
     ) -> None:
-        """An existing collection is never silently reshaped.
-
-        A dense-dimension mismatch (a changed embedding model) stops startup; the sparse
-        modifier only affects scoring, so switching BM25 IDF on or off is done in place.
-        """
         await self.validate_schema(dense_dimension=dense_dimension)
         info = await self._client.get_collection(self._collection)
         current = (info.config.params.sparse_vectors or {}).get(SPARSE_VECTOR)
@@ -153,7 +129,6 @@ class QdrantIndex:
             )
 
     async def drop_collection(self) -> None:
-        """Delete this domain's collection outright (development reset / tests)."""
         await self._client.delete_collection(self._collection)
 
     async def upsert(self, points: list[QdrantPoint]) -> None:
@@ -193,7 +168,6 @@ class QdrantIndex:
         return await self._count(flt)
 
     async def count_all_for_document(self, document_id: str) -> int:
-        """Count points of a document across every index version (deletion verify, D04)."""
         flt = models.Filter(
             must=[
                 models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id))
@@ -220,7 +194,6 @@ class QdrantIndex:
         created_to: str | None,
         exclude_document_ids: list[str] | None,
     ) -> models.Filter:
-        # Every search is scoped to exactly one active index version (spec 12.2 step 4).
         must: list[models.Condition] = [
             models.FieldCondition(key="index_version", match=models.MatchValue(value=index_version))
         ]
@@ -243,8 +216,6 @@ class QdrantIndex:
                     range=models.DatetimeRange(gte=created_from, lte=created_to),
                 )
             )
-        # Immediately exclude DELETING/DELETE_FAILED/DELETED documents (invariant 11)
-        # even before their points are physically removed by the deletion worker.
         must_not: list[models.Condition] = []
         if exclude_document_ids:
             must_not.append(
@@ -349,7 +320,6 @@ class QdrantIndex:
         await self._delete_by_filter(flt)
 
     async def delete_document_all(self, document_id: str) -> None:
-        """Delete every point of a document across all index versions (deletion, D04)."""
         flt = models.Filter(
             must=[
                 models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id))

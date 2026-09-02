@@ -1,5 +1,3 @@
-"""MCP tool I/O schema contract (spec section 7). Unknown fields rejected; bounds enforced."""
-
 from __future__ import annotations
 
 import pytest
@@ -20,18 +18,18 @@ def test_search_input_valid_defaults() -> None:
 
 def test_search_input_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
-        SearchKnowledgeInput(query="x", top_k=5)  # unknown field -> extra=forbid
+        SearchKnowledgeInput(query="x", top_k=5)
 
 
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"query": ""},  # empty
-        {"query": "  "},  # blank
-        {"query": "x", "limit": 0},  # below 1
-        {"query": "x", "limit": 51},  # above 50
-        {"query": "x", "limit": 10, "max_candidates": 5},  # candidates < limit
-        {"query": "x", "max_candidates": 201},  # above 200
+        {"query": ""},
+        {"query": "  "},
+        {"query": "x", "limit": 0},
+        {"query": "x", "limit": 51},
+        {"query": "x", "limit": 10, "max_candidates": 5},
+        {"query": "x", "max_candidates": 201},
     ],
 )
 def test_search_input_bounds(kwargs) -> None:

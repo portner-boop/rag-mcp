@@ -1,5 +1,3 @@
-"""In-memory fakes implementing the ingestion pipeline ports (spec section 18)."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -176,8 +174,6 @@ class FakeEmbedding:
 
 @dataclass
 class FakeExpander:
-    """Canned query-expansion for search tests; records how many times it was invoked."""
-
     variants: list[str] = field(default_factory=list)
     calls: int = 0
 
@@ -200,11 +196,6 @@ class FakeSearchStore:
 
     async def excluded_document_ids(self) -> list[str]:
         return list(self.excluded)
-
-
-# --------------------------------------------------------------------------------------
-# In-memory IngestionStore
-# --------------------------------------------------------------------------------------
 
 
 @dataclass
@@ -235,14 +226,12 @@ class FakeIngestionStore:
     outbox: list[dict] = field(default_factory=list)
     audit: list[dict] = field(default_factory=list)
 
-    # --- seeding helpers ---
     def seed_document(self, state: DocumentState) -> None:
         self.docs[state.document_id] = _Doc(state=state)
 
     def seed_job(self, job_id: str, document_id: str) -> None:
         self.jobs[job_id] = _Job(job_id=job_id, document_id=document_id)
 
-    # --- port methods ---
     async def inbox_seen(self, consumer: str, event_id: str) -> bool:
         return (consumer, event_id) in self.inbox
 
@@ -342,11 +331,6 @@ class FakeIngestionStore:
         job.attempt = attempt
 
 
-# --------------------------------------------------------------------------------------
-# In-memory DeletionStore / ReindexStore
-# --------------------------------------------------------------------------------------
-
-
 @dataclass
 class FakeDeletionStore:
     doc: DocumentState
@@ -392,7 +376,7 @@ class FakeDeletionStore:
 @dataclass
 class FakeReindexStore:
     doc: DocumentState
-    configs: dict  # version -> IndexConfigState
+    configs: dict
     active_version: int
     job: _Job = field(default_factory=lambda: _Job("j", "d"))
     inbox: set = field(default_factory=set)
@@ -422,7 +406,7 @@ class FakeReindexStore:
     async def finalize_cutover(self, *, document_id, job_id, consumer, event_id, data):
         self.doc.status = DocumentStatus.READY.value
         self.doc.index_version = data.target_index_version
-        self.active_version = data.target_index_version  # cutover
+        self.active_version = data.target_index_version
         self.job.status = JobStatus.COMPLETED.value
         self.outbox.append(data.completed_event)
         self.inbox.add((consumer, event_id))
@@ -431,7 +415,7 @@ class FakeReindexStore:
         self, *, document_id, job_id, set_document_failed, consumer, event_id, **_
     ):
         if set_document_failed:
-            self.doc.status = DocumentStatus.READY.value  # restore old; active unchanged
+            self.doc.status = DocumentStatus.READY.value
             self.inbox.add((consumer, event_id))
         else:
             self.job.status = JobStatus.RETRY_WAIT.value

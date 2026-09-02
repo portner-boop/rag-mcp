@@ -1,12 +1,3 @@
-"""Smoke check: production hybrid search on in-memory fakes (D03 checklist).
-
-Proves: an original query returns ranked relevant chunks; dense+sparse fuse and rerank;
-search_meta reflects the rerank fallback; the active index version is enforced;
-deleting/deleted and non-active-version items are excluded; document_id filter validates.
-
-Run: uv run python scripts/smoke_search.py
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -90,7 +81,6 @@ async def run() -> None:
         text="Remote work is available two days per week with manager approval.",
         index_version=2,
     )
-    # old index version -> must be excluded (active is v2)
     _seed_point(
         vectors,
         document_id=doc_stale,
@@ -98,7 +88,6 @@ async def run() -> None:
         text="Leave transfer under the old policy version.",
         index_version=1,
     )
-    # a deleting document at the active version -> must be excluded via status filter
     _seed_point(
         vectors,
         document_id=doc_deleting,
@@ -115,7 +104,6 @@ async def run() -> None:
     embedding = FakeEmbedding(DIMENSION)
     service = SearchService(store=store, vectors=vectors, embedding=embedding, settings=_Settings())
 
-    # --- 1. ranked relevant chunks; active version enforced; exclusions applied ---
     out = await service.search_knowledge(
         SearchKnowledgeInput(query="How is unused leave transferred?", limit=5, max_candidates=20)
     )
@@ -132,7 +120,6 @@ async def run() -> None:
         f"(dense={out.search_meta.dense_candidates}, sparse={out.search_meta.sparse_candidates})"
     )
 
-    # --- 2. rerank fallback -> reranked=false but still returns hybrid top-N ---
     async def _broken_rerank(*_a, **_k):
         raise EmbeddingValidationError("rerank down")
 
@@ -144,7 +131,6 @@ async def run() -> None:
     assert out2.search_meta.reranked is False
     print("  OK  rerank fallback -> reranked=false, hybrid top-N preserved")
 
-    # --- 3. dense-only fallback when sparse embedding is unavailable ---
     async def _broken_sparse(_texts):
         raise EmbeddingValidationError("sparse down")
 
@@ -155,7 +141,6 @@ async def run() -> None:
     assert out3.search_meta.sparse_candidates == 0 and out3.search_meta.dense_candidates > 0
     print("  OK  dense-only fallback (sparse unavailable) -> sparse_candidates=0")
 
-    # --- 4. unknown document id in filter is rejected ---
     try:
         await service.search_knowledge(
             SearchKnowledgeInput(

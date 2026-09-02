@@ -1,11 +1,3 @@
-"""Ports for the ingestion pipeline (spec section 11).
-
-The pipeline is written against these Protocols so it can run against real adapters
-(Postgres/S3/Qdrant/Embedding) in production and in-memory fakes for smoke/tests. The
-``IngestionStore`` port hides all durable state transitions and the atomic finalization
-that turns a document ``READY`` (spec section 11 step 13).
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -82,8 +74,6 @@ class FinalizeData:
 
 
 class IngestionStore(Protocol):
-    """Durable state operations the pipeline needs (spec sections 8, 9, 11)."""
-
     async def inbox_seen(self, consumer: str, event_id: str) -> bool: ...
     async def get_document(self, document_id: str) -> DocumentState: ...
     async def get_active_index_config(self) -> IndexConfigState: ...
@@ -91,13 +81,7 @@ class IngestionStore(Protocol):
 
     async def begin_processing(
         self, job_id: str, document_id: str, *, owner: str, lease_ttl_seconds: int
-    ) -> None:
-        """Acquire the job lease and set document+job PROCESSING (spec section 11 step 1-3).
-
-        Raises a retryable error if another live lease owner already holds the job, so
-        the delivery is requeued rather than double-processed.
-        """
-        ...
+    ) -> None: ...
 
     async def set_stage(self, job_id: str, *, stage: str, progress: int) -> None: ...
     async def heartbeat(self, job_id: str, *, owner: str, lease_ttl_seconds: int) -> bool: ...
@@ -108,9 +92,7 @@ class IngestionStore(Protocol):
         self, *, document_id: str, job_id: str, consumer: str, event_id: str, data: FinalizeData
     ) -> None: ...
 
-    async def complete_idempotent(self, *, job_id: str, consumer: str, event_id: str) -> None:
-        """Record inbox + mark job COMPLETED without reprocessing an already-READY doc."""
-        ...
+    async def complete_idempotent(self, *, job_id: str, consumer: str, event_id: str) -> None: ...
 
     async def mark_failed(
         self,

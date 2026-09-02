@@ -1,13 +1,3 @@
-"""Smoke check: deletion + reindex lifecycle on in-memory fakes (D04 checklist).
-
-Proves: delete removes points/objects and marks DELETED; repeated delete is a no-op;
-reindex builds the target version, verifies, then cuts over (activates target) and cleans
-old-version points; a failed reindex leaves the old version active; cancellation stops
-reindex before cutover.
-
-Run: uv run python scripts/smoke_lifecycle.py
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -28,7 +18,6 @@ DIMENSION = 64
 DOMAIN = "hr"
 
 
-# --- compact fake stores (smoke-only) --------------------------------------------------
 @dataclass
 class _Job:
     status: str = "QUEUED"
@@ -79,7 +68,7 @@ class FakeDeletionStore:
 @dataclass
 class FakeReindexStore:
     doc: DocumentState
-    configs: dict  # version -> IndexConfigState
+    configs: dict
     active_version: int
     job: _Job = field(default_factory=_Job)
     inbox: set = field(default_factory=set)
@@ -109,7 +98,7 @@ class FakeReindexStore:
     async def finalize_cutover(self, *, document_id, job_id, consumer, event_id, data):
         self.doc.status = DocumentStatus.READY.value
         self.doc.index_version = data.target_index_version
-        self.active_version = data.target_index_version  # cutover
+        self.active_version = data.target_index_version
         self.job.status = "COMPLETED"
         self.outbox.append(data.completed_event)
         self.inbox.add((consumer, event_id))
@@ -118,7 +107,7 @@ class FakeReindexStore:
         self, *, document_id, job_id, set_document_failed, consumer, event_id, **_
     ):
         if set_document_failed:
-            self.doc.status = DocumentStatus.READY.value  # restore old; active unchanged
+            self.doc.status = DocumentStatus.READY.value
             self.inbox.add((consumer, event_id))
 
     async def record_retry(self, job_id, *, attempt, available_in):
@@ -246,7 +235,7 @@ async def run_reindex() -> None:
         "text/markdown",
     )
     vectors = FakeVectorIndex()
-    _seed_points(vectors, document_id, index_version=1)  # old active points
+    _seed_points(vectors, document_id, index_version=1)
     embedding = FakeEmbedding(DIMENSION)
 
     def pipeline():
@@ -284,7 +273,6 @@ async def run_reindex() -> None:
     )
     print(f"  OK  reindex built v2 ({r.chunk_count} pts), cut over, cleaned v1")
 
-    # --- failed reindex leaves old version active ---
     doc2 = DocumentState(
         document_id=document_id,
         filename="d.md",
@@ -325,7 +313,6 @@ async def run_reindex() -> None:
     )
     print("  OK  failed reindex kept v1 active and cleaned temp target points")
 
-    # --- cancellation stops before cutover ---
     doc3 = DocumentState(
         document_id=document_id,
         filename="d.md",

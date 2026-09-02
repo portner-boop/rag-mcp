@@ -1,8 +1,3 @@
-"""Smoke check: fail-fast configuration and the domain isolation guard (D01 checklist).
-
-Run: uv run python scripts/smoke_config.py
-"""
-
 from __future__ import annotations
 
 from pydantic import ValidationError

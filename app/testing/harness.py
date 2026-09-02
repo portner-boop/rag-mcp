@@ -1,8 +1,3 @@
-"""Test/smoke harness: builders that wire the fakes into runnable pipelines and events.
-
-Used by the D05 test suite and the smoke scripts to keep scenario setup terse.
-"""
-
 from __future__ import annotations
 
 import json
@@ -25,7 +20,6 @@ OPS_TOKEN = "ops-test-token"
 
 
 def make_settings(**overrides):
-    """A valid Settings for wiring a Container in tests (no live infra is contacted)."""
     from app.config import Settings
     from app.session.auth import hash_token
 
@@ -207,8 +201,6 @@ def search_service(
 
 @dataclass
 class FakeMessage:
-    """Minimal stand-in for an aio-pika incoming message (records ack/nack/reject)."""
-
     body: bytes
     headers: dict = field(default_factory=dict)
     acked: bool = False

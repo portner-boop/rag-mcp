@@ -1,5 +1,3 @@
-"""Unit smoke for D03 search fusion and D04 reindex cutover (full matrix is D05)."""
-
 from __future__ import annotations
 
 from app.search.fusion import reciprocal_rank_fusion
@@ -16,9 +14,9 @@ def test_rrf_is_deterministic_and_dedupes() -> None:
     sparse = [VectorHit("b", 5.0, {}), VectorHit("c", 4.0, {})]
     fused = reciprocal_rank_fusion([dense, sparse])
     ids = [f.chunk_id for f in fused]
-    assert ids[0] == "b"  # appears in both lists -> highest RRF
-    assert set(ids) == {"a", "b", "c"} and len(ids) == 3  # dedup by chunk id
-    assert reciprocal_rank_fusion([dense, sparse]) == fused  # deterministic
+    assert ids[0] == "b"
+    assert set(ids) == {"a", "b", "c"} and len(ids) == 3
+    assert reciprocal_rank_fusion([dense, sparse]) == fused
 
 
 def test_stable_point_id_changes_with_index_version() -> None:

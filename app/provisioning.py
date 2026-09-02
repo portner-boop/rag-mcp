@@ -1,9 +1,3 @@
-"""One-shot provisioning helpers run before/at first server start.
-
-Seeds the initial active index config (version 1) and ensures the Qdrant collection
-exists with the matching named dense/sparse vectors. Idempotent: safe to run repeatedly.
-"""
-
 from __future__ import annotations
 
 import structlog
@@ -18,11 +12,6 @@ log = structlog.get_logger("provisioning")
 
 
 def _verify_active_config(active, settings: Settings) -> None:
-    """The live corpus was embedded under the active config — settings may not drift.
-
-    Switching embedding model or dimension means every stored vector is now meaningless,
-    so it is a reindex (D04), not a config edit. Failing here beats retrieving garbage.
-    """
     mismatch = {
         field: {"active": current, "configured": configured}
         for field, current, configured in (
@@ -45,7 +34,6 @@ def _verify_active_config(active, settings: Settings) -> None:
 
 
 async def ensure_index_config(database: Database, settings: Settings) -> int:
-    """Create + activate index config v1 if none is active. Returns the active version."""
     async with database.session() as session:
         repo = IndexConfigRepository(session)
         active = await repo.get_active()
@@ -73,7 +61,6 @@ async def ensure_index_config(database: Database, settings: Settings) -> int:
 async def ensure_qdrant(qdrant: QdrantIndex, settings: Settings) -> None:
     await qdrant.ensure_collection(
         dense_dimension=settings.embedding_dense_dimension,
-        # BM25 term weights only become BM25 scores once Qdrant applies IDF.
         sparse_idf=settings.sparse_provider == "bm25",
     )
 

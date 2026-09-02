@@ -1,11 +1,3 @@
-"""Transactional-outbox relay (spec section 8.2, 10).
-
-Polls ``outbox_events`` for PENDING rows, publishes each with publisher confirms and
-marks it PUBLISHED in the same transaction it was locked in (SELECT ... FOR UPDATE SKIP
-LOCKED). A crash between publish and mark re-publishes the row; consumers dedupe by
-``event_id`` (at-least-once delivery, exactly-once business effect).
-"""
-
 from __future__ import annotations
 
 import asyncio

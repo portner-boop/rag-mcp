@@ -1,9 +1,3 @@
-"""Ingestion queue consumer (spec sections 10, 11).
-
-Thin BaseConsumer subclass: a pipeline is built per delivery via the factory; the
-ingestion-specific metric series are emitted via the metric hooks.
-"""
-
 from __future__ import annotations
 
 from app.observability import metrics
@@ -26,7 +20,6 @@ class IngestionConsumer(BaseConsumer):
     expected_event_type = EventType.DOCUMENT_INGESTION_REQUESTED
 
     def __init__(self, *, pipeline_factory, store, domain_id: str, owner: str, **kwargs) -> None:
-        # consumer_name is fixed by the class; drop any passed-in override for compatibility.
         kwargs.pop("consumer_name", None)
         super().__init__(store=store, domain_id=domain_id, **kwargs)
         self._pipeline_factory = pipeline_factory
@@ -51,7 +44,6 @@ class IngestionConsumer(BaseConsumer):
             retryable=result.retryable,
         ).model_dump(mode="json")
 
-    # --- ingestion-specific metrics (spec section 17) ----------------------------------
     def _metric_success(self, result: PipelineResult) -> None:
         metrics.ingestion_jobs_total.labels(result=result.status).inc()
         if result.chunk_count:

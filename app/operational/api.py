@@ -1,10 +1,3 @@
-"""Internal operational control-plane API (spec section 7.2-7.9).
-
-Separate identity and network path from the chat MCP surface (invariant 2). Every route
-requires the operational token and an explicit corpus scope. These operations are never
-exposed to the chat orchestrator or the LLM. Delete/reindex land in the D04 slice.
-"""
-
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, Header, Request
@@ -58,7 +51,6 @@ def build_ops_app(container: Container) -> FastAPI:
     async def _domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:
         return JSONResponse(exc.to_contract(current_trace_id()), status_code=exc.http_status)
 
-    # --- 7.2 / 7.3 read ---------------------------------------------------------------
     @app.post("/internal/documents/find", response_model=FindDocumentsOutput)
     async def find_documents(
         payload: FindDocumentsInput, _: Principal = Depends(require_ops(Scope.CORPUS_READ))
@@ -72,7 +64,6 @@ def build_ops_app(container: Container) -> FastAPI:
     ) -> DocumentMetadata:
         return await container.document_service.get_document_metadata(payload)
 
-    # --- 7.4 / 7.5 / 7.6 ingestion ----------------------------------------------------
     @app.post("/internal/documents/prepare-upload", response_model=PrepareUploadOutput)
     async def prepare_upload(
         payload: PrepareUploadInput, _: Principal = Depends(require_ops(Scope.CORPUS_WRITE))
@@ -92,7 +83,6 @@ def build_ops_app(container: Container) -> FastAPI:
     ) -> IngestionStatusOutput:
         return await container.ingestion_service.get_ingestion_status(payload)
 
-    # --- 7.7 delete / 7.8 reindex (D04) -----------------------------------------------
     @app.post("/internal/documents/delete", response_model=DeleteDocumentOutput)
     async def delete_document(
         payload: DeleteDocumentInput, _: Principal = Depends(require_ops(Scope.CORPUS_DELETE))
@@ -111,7 +101,6 @@ def build_ops_app(container: Container) -> FastAPI:
     ) -> CancelJobOutput:
         return await container.lifecycle_service.cancel_job(payload)
 
-    # --- DLQ inspect / redrive (D04) --------------------------------------------------
     @app.post("/internal/dlq/inspect")
     async def dlq_inspect(
         limit: int = 20, _: Principal = Depends(require_ops(Scope.CORPUS_READ))
@@ -128,7 +117,6 @@ def build_ops_app(container: Container) -> FastAPI:
             raise InvalidStateError("Queue is not connected")
         return JSONResponse({"redriven": await container.dlq_service.redrive(limit)})
 
-    # --- 7.9 download -----------------------------------------------------------------
     @app.post("/internal/downloads/create", response_model=CreateDownloadUrlOutput)
     async def create_download_url(
         payload: CreateDownloadUrlInput,
@@ -136,7 +124,6 @@ def build_ops_app(container: Container) -> FastAPI:
     ) -> CreateDownloadUrlOutput:
         return await container.download_service.create_download_url(payload)
 
-    # --- health / metrics -------------------------------------------------------------
     @app.get("/health/operational")
     async def operational_health() -> JSONResponse:
         report = await container.operational_health()

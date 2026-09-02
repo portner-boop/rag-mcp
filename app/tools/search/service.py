@@ -1,11 +1,3 @@
-"""search_knowledge orchestration (tool layer).
-
-Builds the validated input contract, calls the shared retrieval engine
-(`app.search.service`) via the process container, and returns the spec-frozen output
-shape (spec 7.1) as a dict. This success shape is NOT wrapped in the generic Envelope —
-the orchestrator expects the exact search_knowledge fields.
-"""
-
 from __future__ import annotations
 
 from app.shared.contracts.mcp import SearchFilters, SearchKnowledgeInput

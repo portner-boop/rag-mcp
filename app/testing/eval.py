@@ -1,24 +1,3 @@
-"""Deterministic retrieval-eval harness (search-improvement S2, Tier 4.2).
-
-A golden Q→A set turns "did retrieval get better?" from a vibe into a number that CI can
-gate on. This harness is intentionally **infra-free and deterministic**: it builds the
-exact units the ingestion pipeline would index — prose chunks + linearized table facts via
-``chunk_markdown``, with the same ``embed_texts`` context prefix — and ranks them with the
-in-process BM25 encoder (real tokenizer + Russian/English stemming). So it measures the
-**lexical** branch end-to-end without a model server or Qdrant.
-
-It deliberately does NOT exercise the dense or reranker branches (those need a live model);
-a full hybrid eval belongs behind a real-infra gate. But the lexical score is a faithful,
-regression-proof proxy for the representation work (chunking, linearization, stemming,
-context prefix): if the answer unit ranks well here, the hybrid system that layers dense +
-rerank on top does at least as well.
-
-Metrics: ``recall@k`` (a relevant unit is in the top k) and ``MRR`` (1/rank of the first
-relevant unit), averaged over the gold cases. A unit is *relevant* to a case when its
-returned text contains every ``must_contain`` string — i.e. the answer value bound to its
-column/label, the thing an LLM needs to answer correctly.
-"""
-
 from __future__ import annotations
 
 import json
@@ -30,19 +9,16 @@ from pathlib import Path
 from app.storage.bm25 import tokenize
 from app.worker_support.chunk_embed import TABLE_FACT_INDEX_BASE, chunk_markdown, embed_texts
 
-# Production chunker defaults (mirror settings.toml); the eval indexes exactly what ingestion would.
 _CHUNK_SIZE = 512
 _CHUNK_OVERLAP = 64
 
 
 @dataclass
 class Unit:
-    """One indexable unit, exactly as ingestion would produce it."""
-
     chunk_index: int
-    kind: str  # "prose" | "table" | "fact"
-    indexed_text: str  # what BM25 indexes (context-prefixed, like embed_texts)
-    display_text: str  # the raw chunk text the caller/LLM reads
+    kind: str
+    indexed_text: str
+    display_text: str
     filename: str
     section_path: tuple[str, ...]
 
@@ -58,7 +34,7 @@ class EvalCase:
 @dataclass
 class CaseResult:
     case_id: str
-    hit_rank: int | None  # 1-based rank of the first relevant unit, or None if not retrieved
+    hit_rank: int | None
     hit_kind: str | None
     reciprocal_rank: float
 
@@ -110,8 +86,6 @@ def _unit_kind(chunk) -> str:
 
 
 class Bm25Ranker:
-    """Full BM25 (with corpus IDF) over indexed unit text — the part Qdrant does in prod."""
-
     def __init__(self, units: list[Unit], *, k1: float = 1.2, b: float = 0.75) -> None:
         self._k1 = k1
         self._b = b
@@ -127,7 +101,6 @@ class Bm25Ranker:
         }
 
     def rank(self, query: str) -> list[int]:
-        """Unit indices ordered by BM25 score (desc), stable by index on ties."""
         q_terms = set(tokenize(query))
         scored: list[tuple[float, int]] = []
         for i, doc in enumerate(self._docs):
@@ -175,7 +148,6 @@ def evaluate(cases: list[EvalCase], units: list[Unit], *, k: int = 10) -> EvalRe
 
 
 def load_gold(gold_path: Path, *, fixtures_dir: Path) -> tuple[list[Unit], list[EvalCase]]:
-    """Read a gold JSON file, build the corpus units from its fixtures, and parse cases."""
     data = json.loads(gold_path.read_text(encoding="utf-8"))
     units: list[Unit] = []
     for entry in data["corpus"]:

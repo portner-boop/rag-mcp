@@ -1,5 +1,3 @@
-"""Document state-machine transition legality (spec section 9)."""
-
 from __future__ import annotations
 
 import pytest
@@ -9,7 +7,6 @@ from app.shared.errors import InvalidStateError
 from app.storage.postgres.models import Document
 from app.storage.postgres.repositories import DocumentRepository
 
-# The transition helper only mutates the ORM instance; no session I/O, so session=None is safe.
 REPO = DocumentRepository(session=None)  # type: ignore[arg-type]
 
 
@@ -51,4 +48,4 @@ async def test_illegal_transition_raises(start, allowed, to) -> None:
     doc = _doc(start)
     with pytest.raises(InvalidStateError):
         await REPO.transition(doc, allowed_from=allowed, to=to)
-    assert doc.status == start.value  # unchanged
+    assert doc.status == start.value

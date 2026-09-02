@@ -1,9 +1,3 @@
-"""Query normalization that must not change intent (spec section 12.2 step 1).
-
-Conservative: Unicode NFC, strip control characters, trim and collapse whitespace. Casing
-and word choice are left to the embedding model so intent is preserved.
-"""
-
 from __future__ import annotations
 
 import re

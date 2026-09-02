@@ -1,5 +1,3 @@
-"""Queue envelope/event contract and round-trip (spec section 10)."""
-
 from __future__ import annotations
 
 import pytest
@@ -59,6 +57,5 @@ def test_parse_rejects_unknown_event_type() -> None:
 
 
 def test_parse_rejects_missing_required_field() -> None:
-    # DocumentIngestionRequested requires original_object_key + index_version.
     with pytest.raises(ValidationError):
         parse_event({**_COMMON, "event_type": "DocumentIngestionRequested", "job_id": "j"})

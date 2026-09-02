@@ -1,5 +1,3 @@
-"""PostgreSQL-backed ReindexStore with atomic cutover (spec sections 9, 12.3)."""
-
 from __future__ import annotations
 
 from datetime import timedelta
@@ -114,7 +112,6 @@ class SqlReindexStore:
             doc.error_code = None
             doc.error_message = None
 
-            # Cutover: activate the target index config only now (spec 12.3).
             await IndexConfigRepository(session).activate(data.target_index_version)
 
             job = await ReindexJobRepository(session).get_for_update(job_id)
@@ -160,8 +157,6 @@ class SqlReindexStore:
                 job.status = JobStatus.RETRY_WAIT.value
                 return
 
-            # Terminal: restore the document to READY on its OLD version (old version stays
-            # active — the target was never activated). Failed reindex is non-destructive.
             docs = DocumentRepository(session)
             doc = await docs.get_for_update(document_id)
             if DocumentStatus(doc.status) == DocumentStatus.REINDEXING:

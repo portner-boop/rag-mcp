@@ -1,10 +1,3 @@
-"""Lightweight W3C trace-context propagation (spec sections 6, 17).
-
-Full OpenTelemetry export is wired in a later slice; here we provide deterministic
-trace/request id propagation through contextvars and a ``traceparent`` parser so the
-same trace id flows: MCP command -> outbox -> queue headers -> worker.
-"""
-
 from __future__ import annotations
 
 import re
@@ -54,13 +47,12 @@ def new_trace(request_id: str | None = None) -> TraceContext:
 
 
 def parse_traceparent(value: str | None, request_id: str | None = None) -> TraceContext:
-    """Parse an inbound ``traceparent`` header, generating a fresh trace on failure."""
     if value:
         match = _TRACEPARENT_RE.match(value.strip())
         if match:
             return TraceContext(
                 trace_id=match["trace_id"],
-                span_id=_random_hex(16),  # new child span for this hop
+                span_id=_random_hex(16),
                 request_id=request_id or _random_hex(16),
                 sampled=match["flags"].endswith("1"),
             )

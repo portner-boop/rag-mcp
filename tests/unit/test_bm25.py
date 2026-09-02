@@ -1,5 +1,3 @@
-"""BM25 lexical vectors: the half of BM25 this process owns (Qdrant supplies IDF)."""
-
 from __future__ import annotations
 
 from app.storage.bm25 import Bm25Encoder, tokenize
@@ -7,13 +5,11 @@ from app.storage.bm25 import Bm25Encoder, tokenize
 
 def test_tokenizer_keeps_words_and_numbers_and_drops_stopwords() -> None:
     tokens = tokenize("Сколько дней отпуска в 2026 году?")
-    assert "отпуск" in tokens and "2026" in tokens  # "отпуска" is stemmed to "отпуск"
-    assert "в" not in tokens  # single characters and stopwords never become terms
+    assert "отпуск" in tokens and "2026" in tokens
+    assert "в" not in tokens
 
 
 def test_stemming_collapses_russian_inflections() -> None:
-    # The exact failure behind the ТЭО golden case: inflected query forms must match the
-    # document's surface forms so the sparse branch actually fires on them.
     assert tokenize("стоимости") == tokenize("стоимость")
     assert tokenize("процедурах") == tokenize("процедур")
     assert tokenize("эксплуатации") == tokenize("эксплуатация")
@@ -33,7 +29,7 @@ def test_term_frequency_saturates() -> None:
     term = encoder.encode("отпуск").indices[0]
     single = dict(zip(once.indices, once.values, strict=True))[term]
     double = dict(zip(twice.indices, twice.values, strict=True))[term]
-    assert single < double < 2 * single  # more is better, but sub-linearly
+    assert single < double < 2 * single
 
 
 def test_longer_documents_are_penalised_for_the_same_term() -> None:

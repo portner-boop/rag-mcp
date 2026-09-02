@@ -1,21 +1,3 @@
-"""Deterministic Markdown chunker (spec sections 9, 11, invariant 9).
-
-Given the same Markdown and config it always produces the same ordered chunks with the
-same section paths and page ranges, so stable point IDs derived from
-(document, version, index, chunk_index) are reproducible on re-ingestion.
-
-Chunking is **block-aware** (search-improvement S1, Tier 1.2): prose is split into
-whitespace-word windows with overlap, but a Markdown table is an atomic block — it is never
-merged with surrounding prose and never split across a window boundary, so a value keeps its
-column header and a chunk's ``section_path`` reflects where its content actually sits (Tier
-1.4). A table larger than one window is split by data rows with the header row repeated in
-every part. Markdown with no tables chunks exactly as a single prose run.
-
-Tokens are approximated by whitespace words to stay dependency-free and fully
-deterministic; a production tokenizer can replace the word split without changing IDs or
-ordering. Section path comes from the Markdown ATX headings in scope at a chunk's start.
-"""
-
 from __future__ import annotations
 
 import re
@@ -35,8 +17,6 @@ class Chunk:
     page_from: int | None = None
     page_to: int | None = None
     token_count: int = 0
-    # Set on table-derived chunks (search-improvement S2, Tier 4.1): the 0-based table index
-    # within the document and the whole-table Markdown, so search can return the full table.
     table_index: int | None = None
     table_markdown: str | None = None
 
@@ -81,13 +61,12 @@ class DeterministicChunker:
 
         chunks: list[Chunk] = []
         index = 0
-        pending: list[_Word] = []  # accumulated prose words for the current run
+        pending: list[_Word] = []
         table_starts = {start: (end, ordinal) for ordinal, (start, end) in enumerate(table_ranges)}
 
         i = 0
         while i < n:
             if i in table_starts:
-                # Close the current prose run, then emit the table as its own block.
                 chunks, index = self._flush_prose(pending, markdown, page_offsets, chunks, index)
                 pending = []
                 end, table_index = table_starts[i]
@@ -107,7 +86,7 @@ class DeterministicChunker:
                 continue
 
             stripped = bare[i].strip()
-            if not _HEADING_RE.match(stripped):  # heading lines contribute no words
+            if not _HEADING_RE.match(stripped):
                 for match in _WORD_RE.finditer(bare[i]):
                     pending.append(
                         _Word(
@@ -193,8 +172,6 @@ class DeterministicChunker:
         header_tokens = len(_WORD_RE.findall(header))
         full_tokens = sum(len(_WORD_RE.findall(bare[k])) for k in range(start, end))
 
-        # Small enough to keep the whole table together; otherwise split by data rows,
-        # repeating the header (and separator) so every part keeps its column names.
         if full_tokens <= self._size or not data:
             groups = [data]
         else:

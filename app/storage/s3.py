@@ -1,10 +1,3 @@
-"""S3 object store adapter (spec section 14).
-
-Credentials are scoped to this domain's single bucket. Presigned URLs constrain a
-single object, operation, bucket and short TTL (invariant 5). boto3 is synchronous, so
-blocking calls are offloaded to a thread to keep the async event loop responsive.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -132,7 +125,6 @@ class S3ObjectStore:
             raise UpstreamError("S3 delete failed") from exc
 
     async def ensure_bucket(self) -> None:
-        """Create the domain bucket if missing (dev/MinIO convenience)."""
 
         def _ensure() -> None:
             try:

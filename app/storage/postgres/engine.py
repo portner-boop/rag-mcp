@@ -1,9 +1,3 @@
-"""Async SQLAlchemy engine and session factory.
-
-Both the server and the worker use this to obtain an ``AsyncSession``. Each domain
-deployment connects only to its own PostgreSQL (invariant 3).
-"""
-
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
@@ -36,7 +30,6 @@ class Database:
 
     @asynccontextmanager
     async def session(self) -> AsyncIterator[AsyncSession]:
-        """A transactional session scope. Commits on success, rolls back on error."""
         async with self._sessionmaker() as session:
             try:
                 yield session
@@ -47,7 +40,6 @@ class Database:
 
     @asynccontextmanager
     async def begin(self) -> AsyncIterator[AsyncSession]:
-        """Alias that opens an explicit transaction block."""
         async with self._sessionmaker() as session:
             async with session.begin():
                 yield session

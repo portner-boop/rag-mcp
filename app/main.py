@@ -1,10 +1,3 @@
-"""Single entrypoint with subcommands (the worker is a mode of the app, not a package).
-
-rag-mcp                # or `rag-mcp serve` — chat MCP + operational API
-rag-mcp worker         # ingestion queue consumer
-rag-mcp provision      # one-shot: seed active index config + Qdrant collection
-"""
-
 from __future__ import annotations
 
 import asyncio

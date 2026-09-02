@@ -1,19 +1,9 @@
-"""Enumerations for document/job state machines and pipeline stages (spec section 9)."""
-
 from __future__ import annotations
 
 from enum import Enum
 
 
 class DocumentStatus(str, Enum):
-    """Document lifecycle states.
-
-    UPLOADING -> UPLOADED -> QUEUED -> PROCESSING -> READY
-                                          -> FAILED
-    UPLOADED|FAILED|READY -> REINDEXING -> READY
-    UPLOADED|FAILED|READY -> DELETING -> DELETED | DELETE_FAILED
-    """
-
     UPLOADING = "UPLOADING"
     UPLOADED = "UPLOADED"
     QUEUED = "QUEUED"
@@ -26,15 +16,12 @@ class DocumentStatus(str, Enum):
     DELETED = "DELETED"
 
 
-# Documents excluded from search (invariant 11).
 SEARCH_EXCLUDED_STATUSES: frozenset[DocumentStatus] = frozenset(
     {DocumentStatus.DELETING, DocumentStatus.DELETE_FAILED, DocumentStatus.DELETED}
 )
 
 
 class JobStatus(str, Enum):
-    """Common job envelope status (spec section 9)."""
-
     QUEUED = "QUEUED"
     PROCESSING = "PROCESSING"
     RETRY_WAIT = "RETRY_WAIT"
@@ -45,8 +32,6 @@ class JobStatus(str, Enum):
 
 
 class IngestionStage(str, Enum):
-    """Ordered ingestion pipeline stages (spec section 9 and 11)."""
-
     DOWNLOAD = "DOWNLOAD"
     PARSING = "PARSING"
     MARKDOWN_UPLOAD = "MARKDOWN_UPLOAD"
@@ -58,7 +43,6 @@ class IngestionStage(str, Enum):
     FINALIZING = "FINALIZING"
 
 
-# Progress percentage checkpoints per completed stage, used by get_ingestion_status.
 STAGE_PROGRESS: dict[IngestionStage, int] = {
     IngestionStage.DOWNLOAD: 10,
     IngestionStage.PARSING: 25,
@@ -73,16 +57,12 @@ STAGE_PROGRESS: dict[IngestionStage, int] = {
 
 
 class OutboxStatus(str, Enum):
-    """Transactional outbox row status (spec section 8.2)."""
-
     PENDING = "PENDING"
     PUBLISHED = "PUBLISHED"
     FAILED = "FAILED"
 
 
 class EventType(str, Enum):
-    """Queue message / document event types (spec section 10)."""
-
     DOCUMENT_INGESTION_REQUESTED = "DocumentIngestionRequested"
     DOCUMENT_INGESTION_COMPLETED = "DocumentIngestionCompleted"
     DOCUMENT_INGESTION_FAILED = "DocumentIngestionFailed"
@@ -95,7 +75,5 @@ class EventType(str, Enum):
 
 
 class CapabilityProfile(str, Enum):
-    """MCP capability profile (spec section 1)."""
-
     KNOWLEDGE = "KNOWLEDGE"
     HYBRID = "HYBRID"

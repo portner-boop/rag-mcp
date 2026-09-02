@@ -1,5 +1,3 @@
-"""Search returns the whole table for a table hit (search-improvement S2, Tier 4.1)."""
-
 from __future__ import annotations
 
 from app.search.service import SearchService

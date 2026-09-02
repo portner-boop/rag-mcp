@@ -1,19 +1,3 @@
-"""Dense embeddings + reranking over an OpenAI-shaped HTTP API (spec section 13).
-
-One adapter, two upstream calls:
-
-* ``POST {base}/embeddings`` — OpenAI's embeddings shape, which OpenRouter, vLLM,
-  LiteLLM and TEI all speak. ``dimensions`` is sent so the returned vector always matches
-  the Qdrant collection (Qwen3 embedding models are Matryoshka-trained and honour it).
-* ``POST {base}/rerank`` — the Cohere-style rerank shape OpenRouter exposes for
-  cross-encoder models such as ``qwen/qwen3-reranker-4b``.
-
-The lexical branch never leaves the process: sparse vectors come from the local BM25
-encoder, and Qdrant applies IDF. Responses are validated exactly as strictly as the
-custom Embedding API client validates its own contract — a wrong dimension or a
-hallucinated document id is an upstream error, not silently-wrong retrieval.
-"""
-
 from __future__ import annotations
 
 import math
@@ -53,7 +37,7 @@ class OpenAICompatibleEmbedding:
         self._timeout = timeout
         self._rerank_timeout = rerank_timeout
         self._headers = {"Authorization": f"Bearer {token}"}
-        self._transport = transport  # test seam; production builds the default transport
+        self._transport = transport
         self._client: httpx.AsyncClient | None = None
 
     async def __aenter__(self) -> OpenAICompatibleEmbedding:
@@ -88,8 +72,6 @@ class OpenAICompatibleEmbedding:
         except httpx.HTTPError as exc:
             raise UpstreamError("Embedding request failed") from exc
 
-    # --- dense ---------------------------------------------------------------------
-
     async def dense(self, texts: list[str], *, normalize: bool = True) -> list[list[float]]:
         body = {
             "model": self._dense_model,
@@ -102,7 +84,6 @@ class OpenAICompatibleEmbedding:
         if not isinstance(data, list) or len(data) != len(texts):
             raise EmbeddingValidationError("Dense vector count mismatch")
 
-        # OpenAI returns the input index on every item; never trust list order.
         ordered: list[list[float]] = [[] for _ in texts]
         for item in data:
             index = item.get("index", 0)
@@ -123,13 +104,8 @@ class OpenAICompatibleEmbedding:
                 raise EmbeddingValidationError("Dense vector contains non-finite values")
         return [_l2_normalize(v) for v in ordered] if normalize else ordered
 
-    # --- sparse --------------------------------------------------------------------
-
     async def sparse(self, texts: list[str]) -> list[SparseVector]:
-        """Local BM25 term weights; Qdrant's `modifier: idf` supplies the IDF factor."""
         return self._sparse.encode_many(texts)
-
-    # --- rerank --------------------------------------------------------------------
 
     async def rerank(
         self, query: str, documents: list[RerankDocument], *, top_n: int

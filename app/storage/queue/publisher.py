@@ -1,5 +1,3 @@
-"""Message publisher with publisher confirms and trace propagation (spec section 10, 17)."""
-
 from __future__ import annotations
 
 import json

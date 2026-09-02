@@ -1,13 +1,3 @@
-"""Reindex pipeline (spec section 12.3).
-
-Builds the document's points under the TARGET index version alongside the still-active
-source version, verifies them, then atomically cuts over (activate target config + move
-the document to the target version) only after full success. Search continues on the old
-version during the build (the document stays REINDEXING, its old-version points remain
-searchable). On failure the old version stays active and any temporary target points are
-cleaned up. After a successful cutover the old-version points are removed (idempotent).
-"""
-
 from __future__ import annotations
 
 import structlog
@@ -67,7 +57,6 @@ class ReindexPipeline:
                 job_id, document_id, owner=self._owner, lease_ttl_seconds=self._lease_ttl
             )
 
-            # Read validated Markdown if present, else the original + parse (spec 12.3).
             stage = "READ_SOURCE"
             await self._store.set_stage(job_id, stage=stage, progress=20)
             await self._heartbeat(job_id)
@@ -123,7 +112,6 @@ class ReindexPipeline:
                     details={"expected": len(points), "actual": count},
                 )
 
-            # Atomic cutover only after verify (spec 12.3).
             stage = "CUTOVER"
             await self._store.set_stage(job_id, stage=stage, progress=97)
             completed = DocumentReindexCompleted(
@@ -153,7 +141,6 @@ class ReindexPipeline:
                 ),
             )
 
-            # Old-version cleanup after successful switch (idempotent, best-effort).
             if (
                 event.source_index_version is not None
                 and event.source_index_version != target_version
@@ -174,8 +161,6 @@ class ReindexPipeline:
             return PipelineResult(status="completed", chunk_count=len(chunks))
 
         except DomainError as exc:
-            # Compensation: remove temporary target points (never activated) so a retry or
-            # the restored old version is clean (spec section 9 cancellation cleanup).
             if upserted:
                 try:
                     await self._vectors.delete_document(document_id, index_version=target_version)

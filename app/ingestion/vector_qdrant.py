@@ -1,5 +1,3 @@
-"""Adapter binding the ``VectorIndexPort`` to the shared Qdrant client."""
-
 from __future__ import annotations
 
 from app.ingestion.ports import PointData

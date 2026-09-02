@@ -1,17 +1,3 @@
-"""Ingestion pipeline stage machine (spec section 11).
-
-Runs one ``DocumentIngestionRequested`` event to completion:
-
-    DOWNLOAD -> PARSING -> MARKDOWN_UPLOAD -> CHUNKING
-             -> DENSE_EMBEDDING -> SPARSE_EMBEDDING -> QDRANT_UPSERT
-             -> VERIFYING -> FINALIZING
-
-The document becomes READY only after every point is written and verified (invariant 7).
-All effects are idempotent: stable point IDs (invariant 9) make re-upsert overwrite, and
-finalization records the inbox + completed event atomically (spec step 13-14). Between
-stages the pipeline heartbeats the lease and honours cancellation (spec section 9).
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -76,7 +62,6 @@ class IngestionPipeline:
         job_id = event.job_id or ""
         self._current_stage: IngestionStage | None = None
 
-        # Step 2: inbox / terminal-state short circuit (idempotency, spec step 2).
         if await self._store.inbox_seen(self._consumer, event.event_id):
             return PipelineResult(status="duplicate")
 
@@ -89,13 +74,11 @@ class IngestionPipeline:
                 job_id, document_id, owner=self._owner, lease_ttl_seconds=self._lease_ttl
             )
 
-            # Step 4: download + checksum.
             await self._heartbeat_and_stage(job_id, IngestionStage.DOWNLOAD)
             await self._check_cancel(job_id)
             data = await self._s3.get_bytes(event.original_object_key)
             checksum = hashlib.sha256(data).hexdigest()
 
-            # Step 5: already-indexed identical version -> no rework (idempotent effect).
             if (
                 doc.status == "READY"
                 and doc.checksum == checksum
@@ -107,7 +90,6 @@ class IngestionPipeline:
                 )
                 return PipelineResult(status="duplicate", chunk_count=doc.chunk_count or 0)
 
-            # Step 6-7: parse to canonical Markdown, reject empty, store to S3.
             await self._heartbeat_and_stage(job_id, IngestionStage.PARSING)
             await self._check_cancel(job_id)
             parser = self._parsers.get(doc.content_type)
@@ -122,7 +104,6 @@ class IngestionPipeline:
             )
             await self._store.persist_markdown_key(document_id, markdown_key)
 
-            # Step 8: deterministic chunking with stable IDs.
             await self._heartbeat_and_stage(job_id, IngestionStage.CHUNKING)
             await self._check_cancel(job_id)
             chunks, chunker_version = chunk_markdown(
@@ -135,7 +116,6 @@ class IngestionPipeline:
                 raise EmptyMarkdownError("Document produced no chunks")
             texts = embed_texts(chunks, filename=doc.filename)
 
-            # Step 9-10: dense + sparse embeddings in bounded batches, validated.
             await self._heartbeat_and_stage(job_id, IngestionStage.DENSE_EMBEDDING)
             dense = await self._embed_batched(texts, kind="dense")
             await self._heartbeat_and_stage(job_id, IngestionStage.SPARSE_EMBEDDING)
@@ -146,7 +126,6 @@ class IngestionPipeline:
                     code=ErrorCode.INVALID_DIMENSION,
                 )
 
-            # Step 11: build stable points and upsert.
             await self._heartbeat_and_stage(job_id, IngestionStage.QDRANT_UPSERT)
             await self._check_cancel(job_id)
             points = build_points(
@@ -164,7 +143,6 @@ class IngestionPipeline:
             )
             await self._vectors.upsert(points)
 
-            # Step 12: verify point count and sampled payload integrity.
             await self._heartbeat_and_stage(job_id, IngestionStage.VERIFYING)
             count = await self._vectors.count_for_document(document_id, index_version=index_version)
             if count < len(points):
@@ -183,7 +161,6 @@ class IngestionPipeline:
                     retryable=True,
                 )
 
-            # Step 13-14: atomic finalize -> READY + job COMPLETED + completed outbox event.
             await self._heartbeat_and_stage(job_id, IngestionStage.FINALIZING)
             duration_ms = int((time.perf_counter() - started) * 1000)
             completed = DocumentIngestionCompleted(
@@ -224,7 +201,6 @@ class IngestionPipeline:
             return PipelineResult(status="completed", chunk_count=len(chunks))
 
         except DomainError as exc:
-            # The consumer decides retry vs terminal (it knows attempt/max_attempts).
             stage = self._current_stage.value if self._current_stage else None
             log.warning(
                 "ingestion.stage_failed",
@@ -240,8 +216,6 @@ class IngestionPipeline:
                 retryable=exc.retryable,
                 stage=stage,
             )
-
-    # --- helpers -----------------------------------------------------------------------
 
     async def _heartbeat_and_stage(self, job_id: str, stage: IngestionStage) -> None:
         self._current_stage = stage

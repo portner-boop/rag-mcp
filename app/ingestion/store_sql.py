@@ -1,10 +1,3 @@
-"""PostgreSQL-backed ``IngestionStore`` (spec sections 8, 9, 11).
-
-Finalization (READY + job COMPLETED + completed outbox event + inbox record + audit
-event) commits in a single transaction so a document is never READY without its
-durable side effects (invariant 7, spec step 13-14).
-"""
-
 from __future__ import annotations
 
 from app.ingestion.ports import (
@@ -179,8 +172,6 @@ class SqlIngestionStore:
             job.error_message = error_message
 
             if set_document_failed:
-                # Terminal failure: FAILED document, but keep any Markdown artifact so a
-                # future retry can reuse it (compensation, spec section 11).
                 docs = DocumentRepository(session)
                 doc = await docs.get_for_update(document_id)
                 if DocumentStatus(doc.status) not in (

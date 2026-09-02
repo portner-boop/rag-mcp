@@ -1,27 +1,3 @@
-"""BM25 lexical vectors for the sparse retrieval branch (Qdrant's built-in BM25).
-
-Qdrant owns the IDF half of BM25: a sparse vector index declared with
-``modifier: idf`` multiplies each term by the inverse document frequency it observes
-across the collection at query time. This module produces the other half — the term
-frequency component with length normalisation — so the lexical branch needs no model
-server at all:
-
-    value(t, D) = tf(t, D) * (k1 + 1) / (tf(t, D) + k1 * (1 - b + b * |D| / avgdl))
-
-Tokens are mapped to sparse indices by a stable hash, exactly as Qdrant's own BM25
-encoder does; the space is large enough (2^20 by default) that collisions are noise.
-
-Queries and documents run through the same encoder. A query term normally occurs once,
-so its weights differ from 1.0 only by a factor that is constant for the whole query and
-therefore cannot change the ranking between documents.
-
-Snowball stemming (RU for Cyrillic tokens, EN otherwise) is applied identically on both
-sides so inflected query forms match document forms — «стоимости» ↔ «стоимость»,
-«процедурах» ↔ «процедур» — which raw hashing would miss (search-improvement S1, Tier 2.1).
-Numbers and identifiers carry no suffixes, so the stemmer passes them through unchanged and
-the branch still catches exact terminology a dense model blurs.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -39,14 +15,11 @@ _EN_STEMMER = snowballstemmer.stemmer("english")
 
 
 def _stem(token: str) -> str:
-    """Stem a casefolded token: Russian stemmer for Cyrillic, English otherwise."""
     if _CYRILLIC_RE.search(token):
         return _RU_STEMMER.stemWord(token)
     return _EN_STEMMER.stemWord(token)
 
 
-# Only the highest-frequency function words: IDF already discounts common terms, so this
-# list exists to keep vectors small rather than to do linguistics.
 _STOPWORDS = frozenset(
     """
     a an and are as at be but by for from has have how in into is it its of on or that
@@ -65,11 +38,6 @@ _STOPWORDS = frozenset(
 
 
 def tokenize(text: str) -> list[str]:
-    """Stemmed word tokens, minus single characters and the stopword list.
-
-    Stopwords are removed on their full surface form (the list is full forms) before
-    stemming; numbers pass through the stemmer unchanged.
-    """
     tokens: list[str] = []
     for match in _TOKEN_RE.finditer(text):
         token = match.group(0).casefold()
@@ -80,7 +48,6 @@ def tokenize(text: str) -> list[str]:
 
 
 def token_index(token: str, vocab_size: int) -> int:
-    """Stable 32-bit hash of a token, folded into the configured sparse dimension."""
     return int.from_bytes(hashlib.blake2b(token.encode(), digest_size=4).digest(), "big") % (
         vocab_size
     )

@@ -1,10 +1,3 @@
-"""Tool response helpers and the error-mapping wrapper (bpmn-mcp `_common`/envelope).
-
-`tool_wrapper` keeps a `@tool` body a one-line delegate: it runs the tool and, on a
-`DomainError`, converts it to the sanitized rag error contract (spec section 13); any
-other exception becomes a generic INTERNAL error contract with no internals leaked.
-"""
-
 from __future__ import annotations
 
 import functools
@@ -45,7 +38,6 @@ def _error_contract(exc: Exception) -> dict:
 
 
 def tool_wrapper(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Wrap a tool so exceptions become the rag error contract instead of raising."""
     if inspect.iscoroutinefunction(fn):
 
         @functools.wraps(fn)

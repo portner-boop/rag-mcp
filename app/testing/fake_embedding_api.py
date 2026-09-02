@@ -1,16 +1,3 @@
-"""Deterministic fake Embedding API (spec section 13).
-
-Stateless: never stores text, no Qdrant/S3 credentials. Serves dense/sparse/rerank with
-deterministic vectors so ingestion + query embeddings match. Unblocks development while
-the real model/token integration is a long-lead item.
-
-Both shapes are served, so it stands in for either provider: this stack's own contract
-(``/v1/embeddings/dense``, ``/v1/embeddings/sparse``, ``/v1/rerank``) and the
-OpenAI/Cohere one an OpenRouter-style gateway speaks (``/embeddings``, ``/rerank``).
-
-Run: ``fake-embedding-api``  (env: FAKE_EMBEDDING_DIMENSION, FAKE_EMBEDDING_PORT)
-"""
-
 from __future__ import annotations
 
 import os
@@ -56,9 +43,6 @@ async def rerank(req: RerankRequest) -> RerankResponse:
     scored = [RerankResult(id=d.id, score=rerank_score(req.query, d.text)) for d in req.documents]
     scored.sort(key=lambda r: -r.score)
     return RerankResponse(results=scored[: req.top_n])
-
-
-# --- OpenAI / Cohere shapes (embedding_provider = "openai") -------------------------
 
 
 @app.post("/embeddings")

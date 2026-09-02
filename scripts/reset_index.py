@@ -1,15 +1,3 @@
-"""Development reset: drop the corpus and re-provision under the current settings.
-
-Switching embedding model or dimension invalidates every stored vector, so startup
-refuses to run an active index config that no longer matches `settings.toml`. In
-production that is a reindex (D04). In development this script is the shortcut: it drops
-the Qdrant collection, truncates the domain tables, and provisions again.
-
-    uv run python scripts/reset_index.py --yes
-
-DESTRUCTIVE: every document, job and vector of this domain is gone afterwards.
-"""
-
 from __future__ import annotations
 
 import argparse

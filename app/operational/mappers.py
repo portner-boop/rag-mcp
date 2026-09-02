@@ -1,8 +1,3 @@
-"""Map ORM rows to boundary contracts (spec section 7).
-
-Object keys are internal and never returned to frontend-facing clients (spec 7.3).
-"""
-
 from __future__ import annotations
 
 from app.shared.contracts.mcp import DocumentMetadata, DocumentRecord

@@ -1,9 +1,3 @@
-"""SQLAlchemy 2 ORM models for the domain PostgreSQL schema (spec section 8).
-
-PostgreSQL stores metadata, object keys, jobs, events and the transactional
-outbox/inbox only. Chunk text and vectors live exclusively in Qdrant (invariant 4).
-"""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -67,7 +61,6 @@ class Document(Base, TimestampMixin):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     error_code: Mapped[str | None] = mapped_column(String(128), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Optimistic-locking version counter for atomic state transitions (spec section 9).
     row_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     __table_args__ = (
@@ -76,7 +69,6 @@ class Document(Base, TimestampMixin):
         Index("ix_documents_created_by_created", "created_by", "created_at"),
         Index("ix_documents_checksum_version", "checksum", "document_version"),
         Index("ix_documents_index_version", "index_version"),
-        # The functional lower(filename) index is created in the Alembic migration.
     )
 
 
@@ -102,8 +94,6 @@ class DocumentVersion(Base):
 
 
 class JobMixin(TimestampMixin):
-    """Common job envelope (spec section 8.2)."""
-
     id: Mapped[str] = _uuid_col(primary_key=True)
     document_id: Mapped[str] = mapped_column(UUID(as_uuid=False), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
@@ -228,8 +218,6 @@ class IndexConfig(Base):
         ),
         CheckConstraint("dense_dimension > 0", name="ck_index_dense_dim_positive"),
         CheckConstraint("chunk_size_tokens > 0", name="ck_index_chunk_size_positive"),
-        # "At most one active config" (spec 8.3) is enforced by a partial unique index
-        # (WHERE active) created in the Alembic migration.
     )
 
 

@@ -1,12 +1,3 @@
-"""Composition root: build adapters and application services from configuration.
-
-Fail-fast startup (spec section 5, 6): configuration is validated by ``Settings``; the
-container additionally validates that the live Qdrant collection matches the active index
-config (D01 completion checklist). Chat readiness and operational health are separated
-(spec section 6): an S3/RabbitMQ/worker outage must not hide an otherwise searchable
-index.
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -46,13 +37,6 @@ class HealthReport:
 
 
 def build_embedding(settings: Settings):
-    """Pick the retrieval backends configured for this deployment (spec section 13).
-
-    ``openai``: dense + rerank over an OpenAI/Cohere-shaped gateway (OpenRouter), lexical
-    branch computed locally as BM25 with Qdrant applying IDF.
-    ``custom``: this stack's own Embedding API for all three, optionally with the same
-    local BM25 in place of a served sparse model.
-    """
     if settings.embedding_provider == "openai":
         return OpenAICompatibleEmbedding(
             base_url=settings.embedding_api_url,
@@ -80,11 +64,6 @@ def build_embedding(settings: Settings):
 
 
 def build_expander(settings: Settings):
-    """The selective query expander (Tier 3.1), or None when the feature is off.
-
-    Uses the same OpenAI-shaped gateway as embeddings for chat completions; built only when
-    enabled so no generation client exists on the common (expansion-off) deployment.
-    """
     if not settings.enable_query_expansion:
         return None
     return OpenAICompatibleExpander(
@@ -129,7 +108,6 @@ class Container:
             ops_hashes=settings.ops_service_token_hash,
         )
 
-        # Services.
         self.search_service = SearchService(
             store=SqlSearchStore(self.database),
             vectors=self.qdrant,
@@ -146,7 +124,6 @@ class Container:
         )
         self.lifecycle_service = LifecycleService(database=self.database, settings=settings)
 
-        # Queue (set on startup).
         self._connection = None
         self.publisher: Publisher | None = None
         self.dlq_service: DlqService | None = None
@@ -157,10 +134,8 @@ class Container:
         settings = self.settings
         await self.database.ping()
         active = await self._active_config_or_raise()
-        # Validate the live Qdrant collection matches the active config (D01 checklist).
         await self.qdrant.validate_schema(dense_dimension=active.dense_dimension)
 
-        # Operational plane: queue topology + outbox relay.
         self._connection = await rmq.connect(settings.rabbitmq_url)
         channel = await rmq.open_channel(self._connection)
         topology = await declare_topology(
@@ -205,7 +180,6 @@ class Container:
             return await IndexConfigRepository(session).get_active_or_raise()
 
     async def chat_readiness(self) -> HealthReport:
-        """Chat readiness: PostgreSQL metadata, Qdrant schema, active index config."""
         checks: dict[str, str] = {}
         ok = True
         try:
@@ -225,7 +199,6 @@ class Container:
         return HealthReport(ok=ok, checks=checks)
 
     async def operational_health(self) -> HealthReport:
-        """Operational health: adds S3 and RabbitMQ, which do not affect chat search."""
         report = await self.chat_readiness()
         checks = dict(report.checks)
         ok = report.ok
@@ -233,7 +206,6 @@ class Container:
             await self.object_store.head("__healthcheck__/never")
             checks["s3"] = "ok"
         except Exception as exc:  # noqa: BLE001
-            # NotFound is fine: it proves the bucket is reachable.
             checks["s3"] = "ok" if type(exc).__name__ == "NotFoundError" else "fail"
         checks["rabbitmq"] = (
             "ok" if self._connection is not None and not self._connection.is_closed else "fail"
@@ -246,10 +218,6 @@ def build_container(settings: Settings | None = None) -> Container:
     settings.require_server_tokens()
     return Container(settings)
 
-
-# --- process-wide container accessor --------------------------------------------------
-# Tools are registered on `public_mcp` at import time, before the container exists; they
-# fetch it lazily at call time via this accessor (set during server startup).
 
 _CONTAINER: Container | None = None
 

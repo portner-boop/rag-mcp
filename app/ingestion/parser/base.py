@@ -1,12 +1,3 @@
-"""Parser interface and adapters (spec sections 3, 11).
-
-A parser converts an original document to canonical Markdown. Adapters are selected by
-content type. Document text is untrusted data, never executable instructions (spec 16);
-adapters must not evaluate embedded macros/scripts. A production PDF/DOCX parser is
-plugged in by configuration; the built-in registry ships text/markdown adapters and
-rejects unsupported types deterministically.
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -28,7 +19,6 @@ class EmptyMarkdownError(DomainError):
 @dataclass
 class ParsedDocument:
     markdown: str
-    # Cumulative character offset at the end of each page, or None for page-less formats.
     page_offsets: list[int] | None = None
     parser_version: str = "text-1"
     meta: dict = field(default_factory=dict)
@@ -41,8 +31,6 @@ class Parser(Protocol):
 
 
 class TextParser:
-    """Plain text / Markdown pass-through parser."""
-
     version = "text-1"
 
     def parse(self, data: bytes, *, filename: str) -> ParsedDocument:
@@ -83,7 +71,6 @@ def default_registry() -> ParserRegistry:
     registry.register("text/markdown", text)
     registry.register("text/x-markdown", text)
     registry.register("text/csv", text)
-    # Local import keeps adapters.py free to import from this module (no cycle).
     from app.ingestion.parser.adapters import (
         DOCX_CONTENT_TYPE,
         PDF_CONTENT_TYPE,

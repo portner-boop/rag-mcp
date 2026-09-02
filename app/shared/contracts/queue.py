@@ -1,10 +1,3 @@
-"""Queue message contracts and delivery envelope (spec section 10).
-
-Messages are persistent, contract-versioned JSON. The common envelope is mandatory for
-every event; concrete payloads extend it. Producers and consumers use these central
-Pydantic models rather than hand-rolled dicts.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Literal
@@ -14,8 +7,6 @@ from app.shared.enums import EventType
 
 
 class EventEnvelope(StrictModel):
-    """Common envelope fields shared by every queue message."""
-
     schema_version: str = SCHEMA_VERSION
     event_id: str
     event_type: EventType
@@ -106,10 +97,5 @@ def model_for(event_type: EventType) -> type[EventEnvelope]:
 
 
 def parse_event(raw: dict[str, Any]) -> EventEnvelope:
-    """Parse a raw message body into its concrete typed envelope.
-
-    Raises pydantic ``ValidationError`` on schema/deserialization failure, which the
-    consumer treats as a non-recoverable DLQ condition (spec section 10).
-    """
     event_type = EventType(raw["event_type"])
     return model_for(event_type).model_validate(raw)

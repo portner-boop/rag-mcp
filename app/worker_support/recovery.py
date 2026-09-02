@@ -1,11 +1,3 @@
-"""Stale upload/job/lease recovery (spec sections 9, 11; D04 checklist).
-
-A crashed worker leaves a job PROCESSING with an expired lease; a stale UPLOADING document
-never got its object. This service, run periodically by the worker, cleans stale uploads
-and re-enqueues jobs whose lease expired by re-publishing their original *Requested event
-(business idempotency guarantees no double effect).
-"""
-
 from __future__ import annotations
 
 from datetime import timedelta
@@ -33,7 +25,7 @@ log = structlog.get_logger("recovery")
 
 
 class RecoveryService:
-    def __init__(self, *, database: Database, publisher, settings) -> None:  # Publisher, Settings
+    def __init__(self, *, database: Database, publisher, settings) -> None:
         self._db = database
         self._publisher = publisher
         self._settings = settings

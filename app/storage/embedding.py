@@ -1,10 +1,3 @@
-"""HTTP client for the shared stateless Embedding API (spec section 13).
-
-Responses are validated before use: vector count must equal text count, dense vectors
-must have finite values and the configured dimension, sparse indices/values lengths must
-match. Used by both the server (query embeddings for search) and the worker (ingestion).
-"""
-
 from __future__ import annotations
 
 import math
@@ -102,7 +95,6 @@ class EmbeddingClient:
         return resp.vectors
 
     def use_local_sparse(self, encoder) -> None:
-        """Serve the lexical branch from a local BM25 encoder instead of the sparse API."""
         self._local_sparse = encoder
 
     async def sparse(self, texts: list[str]) -> list[SparseVector]:

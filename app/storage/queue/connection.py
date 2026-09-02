@@ -1,5 +1,3 @@
-"""Robust RabbitMQ connection helpers shared by publisher and worker consumer."""
-
 from __future__ import annotations
 
 import aio_pika
@@ -13,7 +11,6 @@ async def connect(url: str) -> AbstractRobustConnection:
 async def open_channel(
     connection: AbstractRobustConnection, *, prefetch: int | None = None
 ) -> AbstractRobustChannel:
-    # publisher_confirms defaults to True in aio-pika: publish awaits broker ack.
     channel = await connection.channel(publisher_confirms=True)
     if prefetch is not None:
         await channel.set_qos(prefetch_count=prefetch)

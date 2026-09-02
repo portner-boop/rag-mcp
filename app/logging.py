@@ -1,10 +1,3 @@
-"""Structured JSON logging with trace correlation and secret redaction (spec section 17).
-
-Follows the bpmn-mcp `setup_logging(level)` convention but emits structured JSON via
-structlog and binds service/domain/environment. Bearer tokens, DSNs and document text
-must never be logged (spec section 15); a redaction processor scrubs token-like values.
-"""
-
 from __future__ import annotations
 
 import logging

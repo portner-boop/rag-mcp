@@ -1,5 +1,3 @@
-"""Deletion queue consumer (spec sections 10, 11)."""
-
 from __future__ import annotations
 
 from app.deletion.pipeline import DeletionPipeline

@@ -1,10 +1,3 @@
-"""Shared tool-layer helpers (bpmn-mcp `tools/_common.py`).
-
-The process-wide container (built at server startup) is resolved lazily here so tool
-bodies stay one-line delegates. Trace context is bound by the ASGI auth middleware ahead
-of the tool call, so tools need no `Context` for correlation.
-"""
-
 from __future__ import annotations
 
 from typing import Annotated

@@ -1,5 +1,3 @@
-"""Retry backoff schedule (spec section 10)."""
-
 from __future__ import annotations
 
 from app.queueing.consumer import BaseConsumer
@@ -27,7 +25,7 @@ def test_backoff_follows_schedule() -> None:
 def test_backoff_caps_at_last_bucket() -> None:
     c = _consumer(jitter=0.0)
     assert c._backoff(4) == 30
-    assert c._backoff(9) == 30  # attempts beyond the schedule stay at the last value
+    assert c._backoff(9) == 30
 
 
 def test_backoff_jitter_is_bounded_and_deterministic() -> None:
@@ -36,4 +34,4 @@ def test_backoff_jitter_is_bounded_and_deterministic() -> None:
         base = c._retry_schedule[min(attempt, 4)]
         delay = c._backoff(attempt)
         assert base <= delay <= base + 1.0
-        assert delay == c._backoff(attempt)  # deterministic (no RNG)
+        assert delay == c._backoff(attempt)

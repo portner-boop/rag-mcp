@@ -1,11 +1,3 @@
-"""Internal delete/reindex control-plane use cases (spec sections 7.7, 7.8).
-
-Both run under the operational identity only. Each writes the job and the requested-event
-outbox row in one atomic transaction; the outbox relay publishes it (spec 8.2, 10).
-Deletion is an idempotent success when the document is already deleting/deleted; reindex
-never activates the target version (cutover happens in the worker after verify).
-"""
-
 from __future__ import annotations
 
 from app.shared.contracts.mcp import (
@@ -44,11 +36,10 @@ _REINDEXABLE_FROM = {DocumentStatus.UPLOADED, DocumentStatus.FAILED, DocumentSta
 
 
 class LifecycleService:
-    def __init__(self, *, database: Database, settings) -> None:  # app.config.Settings
+    def __init__(self, *, database: Database, settings) -> None:
         self._db = database
         self._settings = settings
 
-    # --- 7.7 delete_document ------------------------------------------------------------
     async def delete_document(self, payload: DeleteDocumentInput) -> DeleteDocumentOutput:
         async with self._db.begin() as session:
             docs = DocumentRepository(session)
@@ -71,7 +62,6 @@ class LifecycleService:
             doc = await docs.get_for_update(payload.document_id)
             status = DocumentStatus(doc.status)
 
-            # Already deleted / deleting is an idempotent success (spec 7.7).
             if status in (DocumentStatus.DELETED, DocumentStatus.DELETING):
                 active = await jobs.find_active_for_document(doc.id)
                 return DeleteDocumentOutput(
@@ -123,7 +113,6 @@ class LifecycleService:
                 document_id=doc.id, job_id=job.id, status=DocumentStatus.DELETING.value
             )
 
-    # --- 7.8 reindex_document -----------------------------------------------------------
     async def reindex_document(self, payload: ReindexDocumentInput) -> ReindexDocumentOutput:
         async with self._db.begin() as session:
             docs = DocumentRepository(session)
@@ -132,8 +121,6 @@ class LifecycleService:
             events = EventRepository(session)
             index_configs = IndexConfigRepository(session)
 
-            # The target index config must exist (created inactive by admin/provisioning);
-            # reindex builds points under it and never activates it before verify (spec 7.8).
             target_cfg = await index_configs.get_by_version(payload.target_index_version)
             if target_cfg is None:
                 raise ValidationError(
@@ -161,7 +148,6 @@ class LifecycleService:
                 )
             source_version = doc.index_version
 
-            # Old version remains active during build; document enters REINDEXING (spec 9).
             await docs.transition(doc, allowed_from=_REINDEXABLE_FROM, to=DocumentStatus.REINDEXING)
 
             idempotency_key = f"reindex:{doc.id}:{payload.target_index_version}"
@@ -206,7 +192,6 @@ class LifecycleService:
                 target_index_version=payload.target_index_version,
             )
 
-    # --- cancel (spec section 9: a job flag checked between worker stages) --------------
     async def cancel_job(self, payload: CancelJobInput) -> CancelJobOutput:
         async with self._db.begin() as session:
             for repo_cls in (IngestionJobRepository, ReindexJobRepository, DeletionJobRepository):

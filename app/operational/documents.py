@@ -1,5 +1,3 @@
-"""Internal document read use cases: find_documents, get_document_metadata (spec 7.2/7.3)."""
-
 from __future__ import annotations
 
 from app.operational.mappers import to_metadata, to_record

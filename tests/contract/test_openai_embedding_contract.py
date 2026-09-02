@@ -1,5 +1,3 @@
-"""OpenAI/Cohere-shaped gateway adapter: order, dimension and id mapping are enforced."""
-
 from __future__ import annotations
 
 import json
@@ -28,7 +26,6 @@ def _client(handler) -> OpenAICompatibleEmbedding:
 
 
 def _embedding(seed: float) -> list[float]:
-    # Distinguishable after L2 normalisation, unlike a constant vector.
     return [seed, 1.0] + [0.0] * (DIMENSION - 2)
 
 
@@ -41,7 +38,7 @@ async def test_dense_sends_the_openai_shape_and_restores_input_order() -> None:
         return httpx.Response(
             200,
             json={
-                "data": [  # deliberately out of order
+                "data": [
                     {"index": 1, "embedding": _embedding(2.0)},
                     {"index": 0, "embedding": _embedding(1.0)},
                 ]
@@ -53,7 +50,6 @@ async def test_dense_sends_the_openai_shape_and_restores_input_order() -> None:
     assert seen["path"] == "/api/v1/embeddings"
     assert seen["body"]["input"] == ["first", "second"]
     assert seen["body"]["dimensions"] == DIMENSION
-    # order follows the input (seed 1.0 then 2.0), and vectors come back L2-normalised
     assert vectors[0][0] < vectors[1][0]
     assert sum(v * v for v in vectors[0]) == pytest.approx(1.0)
 

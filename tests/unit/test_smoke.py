@@ -1,9 +1,3 @@
-"""Minimal smoke tests placeholder for the tests/ layout (full matrix is D05).
-
-These assert the two invariants most likely to regress during refactors: the domain
-isolation guard and deterministic chunking.
-"""
-
 from __future__ import annotations
 
 import pytest

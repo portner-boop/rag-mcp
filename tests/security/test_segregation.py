@@ -1,5 +1,3 @@
-"""Domain segregation and identity separation (spec section 16; E2E scenarios 9, 10)."""
-
 from __future__ import annotations
 
 import pytest
@@ -11,7 +9,6 @@ from app.shared.errors import ForbiddenError, UnauthorizedError
 from app.testing.harness import make_settings
 
 
-# --- scenario 10: a deployment cannot be pointed at another domain's stores -----------
 @pytest.mark.parametrize(
     "override",
     [
@@ -25,7 +22,6 @@ def test_isolation_guard_rejects_foreign_stores(override) -> None:
         make_settings(**override)
 
 
-# --- scenario 9: chat and ops identities never cross ----------------------------------
 def _auth() -> TokenAuthenticator:
     return TokenAuthenticator(chat_hashes=hash_token("chat"), ops_hashes=hash_token("ops"))
 

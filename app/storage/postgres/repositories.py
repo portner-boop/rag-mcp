@@ -1,10 +1,3 @@
-"""Repositories over the domain PostgreSQL schema.
-
-All state changes and outbox inserts commit atomically inside the caller's session
-(spec section 8). State transitions use ``SELECT ... FOR UPDATE`` to avoid silent
-state jumps (spec section 9).
-"""
-
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -77,7 +70,6 @@ class DocumentRepository:
     async def transition(
         self, doc: Document, *, allowed_from: set[DocumentStatus], to: DocumentStatus
     ) -> None:
-        """Atomic, validated state transition (spec section 9). No silent jumps."""
         current = DocumentStatus(doc.status)
         if current not in allowed_from:
             raise InvalidStateError(
@@ -127,7 +119,6 @@ class DocumentRepository:
         return (await self.session.execute(stmt)).scalars().first()
 
     async def excluded_ids(self, *, limit: int = 10000) -> list[str]:
-        """Ids of documents excluded from search (DELETING/DELETE_FAILED/DELETED)."""
         stmt = (
             select(Document.id)
             .where(Document.status.in_([s.value for s in SEARCH_EXCLUDED_STATUSES]))
@@ -179,14 +170,10 @@ class IngestionJobRepository:
     async def acquire_lease(
         self, job_id: str, *, owner: str, lease_ttl_seconds: int
     ) -> IngestionJob | None:
-        """Claim a job if it is unleased or its lease has expired (spec section 11).
-
-        Returns the leased job, or ``None`` if another live owner holds it.
-        """
         now = utcnow()
         job = await self.get_for_update(job_id)
         if job.status in (JobStatus.COMPLETED.value, JobStatus.CANCELLED.value):
-            return job  # terminal; caller treats as already processed
+            return job
         lease_live = job.lease_expires_at is not None and job.lease_expires_at > now
         if lease_live and job.lease_owner != owner:
             return None
@@ -216,7 +203,6 @@ class IngestionJobRepository:
         job.progress = progress
 
     async def find_stale(self, *, limit: int = 100) -> list[IngestionJob]:
-        """Jobs stuck PROCESSING past their lease (crashed worker recovery, spec 11)."""
         return await _find_stale(self.session, IngestionJob, limit=limit)
 
 
@@ -237,8 +223,6 @@ async def _find_stale(session: AsyncSession, model, *, limit: int):  # noqa: ANN
 
 
 class _JobRepositoryBase:
-    """Shared lease/heartbeat/lookup logic for deletion and reindex jobs (spec 8.2/11)."""
-
     _model: type
 
     def __init__(self, session: AsyncSession) -> None:
@@ -371,10 +355,6 @@ class ReindexJobRepository(_JobRepositoryBase):
 
 
 class OutboxRepository:
-    """Transactional outbox (spec section 8.2). Rows are written in the same DB
-    transaction as the state change that produced them, then a publisher relays them.
-    """
-
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
@@ -425,8 +405,6 @@ class OutboxRepository:
 
 
 class InboxRepository:
-    """Consumer-side idempotency ledger (spec section 8.2)."""
-
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 

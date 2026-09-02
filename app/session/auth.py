@@ -1,13 +1,3 @@
-"""Service-token authentication (spec section 6).
-
-Only token hashes are stored. Verification is constant-time. The chat token carries
-only ``knowledge:search``; the ops token carries corpus scopes. The two tokens are
-distinct and cannot substitute for each other (invariant 2). Bearer values are never
-logged.
-
-For rotation overlap, each identity accepts a comma-separated list of active hashes.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -19,7 +9,6 @@ from app.shared.errors import ForbiddenError, UnauthorizedError
 
 
 def hash_token(token: str) -> str:
-    """SHA-256 hex digest used both to provision and to verify tokens."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
@@ -50,7 +39,6 @@ class TokenAuthenticator:
         return {h.strip().lower() for h in raw.split(",") if h.strip()}
 
     def _match(self, candidate: str, allowed: set[str]) -> bool:
-        # Constant-time compare against every allowed hash to avoid timing leaks.
         matched = False
         for allowed_hash in allowed:
             if hmac.compare_digest(candidate, allowed_hash):
@@ -71,11 +59,6 @@ class TokenAuthenticator:
         raise UnauthorizedError("Invalid or revoked service token")
 
     def authenticate_identity(self, bearer: str | None, expected: Identity) -> Principal:
-        """Authenticate and assert the token belongs to the expected identity.
-
-        A chat token presented to an operational endpoint fails here (D01 checklist:
-        "chat token cannot call operational interface").
-        """
         principal = self.authenticate(bearer)
         if principal.identity is not expected:
             raise ForbiddenError(
