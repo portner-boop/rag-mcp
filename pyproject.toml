@@ -1,0 +1,73 @@
+[project]
+name = "rag-mcp"
+version = "0.1.0"
+description = "Autonomous per-domain knowledge MCP stack (server + worker) with strict domain isolation."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=3.4,<4",
+    "dynaconf>=3.2,<4",
+    "pydantic>=2.7",
+    "sqlalchemy[asyncio]>=2.0.30",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "qdrant-client>=1.9",
+    "aio-pika>=9.4",
+    "httpx>=0.27",
+    "boto3>=1.34",
+    "fastapi>=0.110",
+    "uvicorn>=0.29",
+    "prometheus-client>=0.20",
+    "structlog>=24.1",
+    "docling>=2,<3",
+    "openpyxl>=3.1,<4",
+    "snowballstemmer>=2.2,<3",
+]
+
+[project.scripts]
+rag-mcp = "app.main:main"
+fake-embedding-api = "app.testing.fake_embedding_api:main"
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+ignore = [
+    "B008",     # FastAPI Depends() in argument defaults is idiomatic
+    "UP042",    # keep `class X(str, Enum)` — deliberate JSON-serializable enums
+    "ASYNC109", # `timeout` params are forwarded to httpx clients, not asyncio.timeout
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*" = ["E501"]
+"scripts/*" = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "hypothesis>=6.100",
+]

@@ -1,0 +1,91 @@
+# Committed, non-secret tuning (spec section 5). Dynaconf loads this, then overrides with
+# RAG_MCP_* env and .env. Identity and connection strings/secrets come from env:
+#   RAG_MCP_DOMAIN_ID, RAG_MCP_POSTGRES_URL, RAG_MCP_QDRANT_URL, RAG_MCP_S3_*,
+#   RAG_MCP_RABBITMQ_URL, RAG_MCP_QUEUE_NAMESPACE, RAG_MCP_CHAT_SERVICE_TOKEN_HASH, ...
+
+capability_profile = "KNOWLEDGE"
+contract_version = "1.3.0"
+environment = "local"
+log_level = "INFO"
+
+# --- transport ---
+mcp_host = "127.0.0.1"
+mcp_port = 8080
+mcp_path = "/mcp"
+ops_host = "127.0.0.1"
+ops_port = 8090
+
+# --- s3 ---
+s3_use_path_style = true
+
+# --- upload / presign ---
+upload_max_bytes = 52428800
+presigned_upload_ttl_seconds = 900
+presigned_download_ttl_seconds = 300
+presigned_download_max_ttl_seconds = 3600
+
+# --- retrieval backends ---
+# "openai": dense + rerank over an OpenAI/Cohere-shaped gateway (OpenRouter);
+# "custom": this stack's own Embedding API (/v1/embeddings/dense, /v1/rerank).
+embedding_provider = "openai"
+# "bm25": lexical vectors computed in-process, IDF applied by Qdrant (its built-in BM25);
+# "api": a sparse embedding model served by the custom Embedding API.
+sparse_provider = "bm25"
+
+# --- embedding ---
+embedding_dense_model = "qwen/qwen3-embedding-8b"
+embedding_sparse_model = "qdrant/bm25"
+embedding_reranker_model = "qwen/qwen3-reranker-4b"
+# Qwen3-Embedding-8B is Matryoshka-trained: 4096 is native, and a smaller value here is
+# sent as `dimensions` to cut Qdrant memory (16 KB per chunk at 4096) for some recall.
+# Changing it invalidates every stored vector — reindex or reset the collection.
+embedding_dense_dimension = 4096
+embedding_batch_size = 32
+embedding_concurrency = 4
+
+# --- bm25 (sparse lexical branch) ---
+bm25_k1 = 1.2
+bm25_b = 0.75
+# Roughly a full chunk after stopword removal (chunk_size_tokens = 512 words).
+bm25_avg_doc_len_tokens = 400
+bm25_vocab_size = 1048576
+
+# --- parser / chunker ---
+chunk_size_tokens = 512
+chunk_overlap_tokens = 64
+
+# --- search ---
+# Per-call retrieval width. NOTE: the effective values come from the search_knowledge
+# arguments (`limit`, `max_candidates`) — these mirror the frozen contract defaults, and
+# the caller decides. The orchestrator asks for `max(max_chunks, 10)` chunks, so the
+# "top 6-8 after rerank" target is set there, in the department's agent config.
+search_dense_candidates = 50
+search_sparse_candidates = 50
+search_default_limit = 10
+search_max_limit = 50
+search_max_candidates = 200
+enable_reranker = true
+allow_dense_only_fallback = true
+allow_sparse_only_fallback = false
+search_rrf_k = 60
+search_max_chunk_chars = 4000
+# On a table hit, return the whole table (header + rows) to the LLM, bounded by the limit above.
+search_return_full_table = true
+
+# --- query expansion (selective multi-query / HyDE fallback) ---
+# Off by default: runs only when the first-pass rerank is low-confidence (see threshold).
+enable_query_expansion = false
+query_expansion_min_rerank_score = 0.30
+query_expansion_max_variants = 3
+enable_hyde = true
+expansion_model = "qwen/qwen3-8b"
+expansion_timeout_seconds = 15.0
+
+# --- worker ---
+worker_concurrency = 4
+worker_prefetch = 8
+lease_ttl_seconds = 120
+heartbeat_interval_seconds = 30
+max_attempts = 5
+stale_upload_ttl_seconds = 3600
+recovery_interval_seconds = 60
