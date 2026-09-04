@@ -35,7 +35,9 @@ sparse_provider = "bm25"
 # --- embedding ---
 embedding_dense_model = "qwen/qwen3-embedding-8b"
 embedding_sparse_model = "qdrant/bm25"
-embedding_reranker_model = "qwen/qwen3-reranker-4b"
+# 8b is the smallest Qwen3 reranker actually served on OpenRouter (4b has no /rerank there
+# and fails silently into the no-rerank fallback).
+embedding_reranker_model = "qwen/qwen3-reranker-8b"
 # Qwen3-Embedding-8B is Matryoshka-trained: 4096 is native, and a smaller value here is
 # sent as `dimensions` to cut Qdrant memory (16 KB per chunk at 4096) for some recall.
 # Changing it invalidates every stored vector — reindex or reset the collection.
@@ -71,6 +73,11 @@ search_rrf_k = 60
 search_max_chunk_chars = 4000
 # On a table hit, return the whole table (header + rows) to the LLM, bounded by the limit above.
 search_return_full_table = true
+# Refusal gate: search_meta.low_confidence is true when the top rerank score < the rerank
+# threshold (when the reranker ran), else when the top dense-cosine < the dense threshold.
+# Calibrate per corpus (homogeneous domains usually need higher values than these defaults).
+search_min_rerank_confidence = 0.45
+search_min_dense_confidence = 0.6
 
 # --- query expansion (selective multi-query / HyDE fallback) ---
 # Off by default: runs only when the first-pass rerank is low-confidence (see threshold).

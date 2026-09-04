@@ -54,6 +54,9 @@ class SearchMeta(StrictModel):
     reranked: bool
     duration_ms: int
     expanded: bool = False
+    top_dense_score: float | None = None
+    top_rerank_score: float | None = None
+    low_confidence: bool = False
 
 
 class SearchKnowledgeOutput(StrictModel):

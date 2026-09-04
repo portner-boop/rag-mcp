@@ -48,9 +48,12 @@ def test_unknown_and_missing_tokens_rejected() -> None:
         auth.authenticate(None)
 
 
-def test_chat_and_ops_hashes_must_be_distinct() -> None:
-    with pytest.raises(ValueError):
-        TokenAuthenticator(chat_hashes=hash_token("same"), ops_hashes=hash_token("same"))
+def test_shared_token_authenticates_on_both_surfaces() -> None:
+    # Single-password deployments: the same token may serve chat and ops. Each surface
+    # still authorizes against its own set, so a shared token clears both.
+    auth = TokenAuthenticator(chat_hashes=hash_token("one"), ops_hashes=hash_token("one"))
+    assert auth.authenticate_identity("Bearer one", Identity.CHAT).identity is Identity.CHAT
+    assert auth.authenticate_identity("Bearer one", Identity.OPS).identity is Identity.OPS
 
 
 def test_server_requires_both_token_hashes() -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import quote
 
 import boto3
 from botocore.client import Config
@@ -56,11 +57,26 @@ class S3ObjectStore:
             ExpiresIn=expires_in,
         )
 
-    async def presign_get(self, key: str, *, expires_in: int) -> str:
+    async def presign_get(
+        self, key: str, *, expires_in: int, download_filename: str | None = None
+    ) -> str:
+        params: dict[str, Any] = {"Bucket": self._bucket, "Key": key}
+        if download_filename:
+            # RFC 5987: non-ASCII filenames go into filename*; plain ASCII fallback kept.
+            ascii_fallback = (
+                download_filename.encode("ascii", "ignore").decode("ascii").replace('"', "").strip()
+            )
+            if not ascii_fallback or ascii_fallback.startswith("."):
+                ext = download_filename.rsplit(".", 1)[-1] if "." in download_filename else ""
+                ascii_fallback = f"file.{ext}" if ext else "file"
+            encoded = quote(download_filename, safe="")
+            params["ResponseContentDisposition"] = (
+                f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
+            )
         return await asyncio.to_thread(
             self._client.generate_presigned_url,
             "get_object",
-            Params={"Bucket": self._bucket, "Key": key},
+            Params=params,
             ExpiresIn=expires_in,
         )
 

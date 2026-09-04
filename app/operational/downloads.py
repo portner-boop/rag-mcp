@@ -34,7 +34,7 @@ class DownloadService:
         if not await self._s3.exists(key):
             raise NotFoundError("Original object is missing")
 
-        url = await self._s3.presign_get(key, expires_in=ttl)
+        url = await self._s3.presign_get(key, expires_in=ttl, download_filename=filename)
         return CreateDownloadUrlOutput(
             document_id=payload.document_id,
             filename=filename,

@@ -86,6 +86,7 @@ class SearchService:
         )
 
         dense_hits, sparse_hits = await self._retrieve(dense_vec, sparse_vec, common)
+        top_dense_score = max((h.score for h in dense_hits), default=None)
         ranked_lists = [hits for hits in (dense_hits, sparse_hits) if hits]
         fused = reciprocal_rank_fusion(ranked_lists, k=self._settings.search_rrf_k)
         candidates = fused[: payload.max_candidates]
@@ -105,6 +106,13 @@ class SearchService:
                     normalized, candidates, limit=payload.limit
                 )
 
+        top_rerank_score = max((h.score for h in final), default=None) if reranked else None
+        low_confidence = self._is_low_confidence(
+            dense_available=dense_vec is not None,
+            top_dense_score=top_dense_score,
+            top_rerank_score=top_rerank_score,
+        )
+
         results = self._to_results(final[: payload.limit], default_version=active.version)
         duration_ms = int((time.perf_counter() - started) * 1000)
 
@@ -121,6 +129,9 @@ class SearchService:
             sparse=len(sparse_hits),
             reranked=reranked,
             expanded=expanded,
+            top_dense_score=top_dense_score,
+            top_rerank_score=top_rerank_score,
+            low_confidence=low_confidence,
             results=len(results),
             duration_ms=duration_ms,
         )
@@ -132,9 +143,28 @@ class SearchService:
                 sparse_candidates=len(sparse_hits),
                 reranked=reranked,
                 expanded=expanded,
+                top_dense_score=top_dense_score,
+                top_rerank_score=top_rerank_score,
+                low_confidence=low_confidence,
                 duration_ms=duration_ms,
             ),
         )
+
+    def _is_low_confidence(
+        self,
+        *,
+        dense_available: bool,
+        top_dense_score: float | None,
+        top_rerank_score: float | None,
+    ) -> bool:
+        # The rerank score is the primary refusal signal; dense cosine only decides when
+        # the reranker is disabled or fell back, so a rerank outage degrades the gate
+        # instead of silencing it.
+        if top_rerank_score is not None:
+            threshold = getattr(self._settings, "search_min_rerank_confidence", 0.45)
+            return top_rerank_score < threshold
+        threshold = getattr(self._settings, "search_min_dense_confidence", 0.6)
+        return dense_available and top_dense_score is not None and top_dense_score < threshold
 
     async def _representations(
         self, query: str

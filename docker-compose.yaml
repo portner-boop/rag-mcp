@@ -108,11 +108,10 @@ services:
     environment:
       <<: *domain-env
       RAG_MCP_MCP_HOST: 0.0.0.0
-      RAG_MCP_OPS_HOST: 0.0.0.0
     command: ["rag-mcp", "serve"]
+    # One port serves both surfaces: chat at /mcp, ops under /ops/internal/...
     ports:
       - "127.0.0.1:8080:8080"
-      - "127.0.0.1:8090:8090"
     depends_on:
       postgres: {condition: service_healthy}
       qdrant: {condition: service_started}

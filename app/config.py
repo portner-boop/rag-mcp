@@ -57,7 +57,7 @@ class Settings(BaseModel):
     embedding_api_token: str = "local-placeholder"
     embedding_dense_model: str = "qwen/qwen3-embedding-8b"
     embedding_sparse_model: str = "qdrant/bm25"
-    embedding_reranker_model: str = "qwen/qwen3-reranker-4b"
+    embedding_reranker_model: str = "qwen/qwen3-reranker-8b"
     embedding_dense_dimension: int = 4096
 
     embedding_provider: str = "openai"
@@ -114,6 +114,14 @@ class Settings(BaseModel):
     search_rrf_k: int = 60
     search_max_chunk_chars: int = 4000
     search_return_full_table: bool = True
+    # Refusal confidence gate: search_meta.low_confidence lets the caller answer "not in
+    # the knowledge base" instead of forcing an answer. When the reranker ran, the top
+    # rerank score is the signal (it separates answerable/no-answer far better than any
+    # retrieval score); the dense-cosine threshold is the fallback when reranking is off
+    # or failed. Calibrate both per corpus — a homogeneous domain raises the no-answer
+    # floor, so the right values there are usually higher than these wiki-tuned defaults.
+    search_min_rerank_confidence: float = 0.45
+    search_min_dense_confidence: float = 0.6
 
     enable_query_expansion: bool = False
     query_expansion_min_rerank_score: float = 0.30
@@ -215,8 +223,9 @@ class Settings(BaseModel):
             raise ValueError(
                 "CHAT_SERVICE_TOKEN_HASH and OPS_SERVICE_TOKEN_HASH are required for the server"
             )
-        if self.chat_service_token_hash == self.ops_service_token_hash:
-            raise ValueError("Chat and ops service token hashes must be distinct (invariant 2)")
+        # chat and ops MAY share a token (single-password deployments): each surface still
+        # authorizes against its own set, so a shared token only clears the surfaces it is
+        # configured for. See TokenAuthenticator.authenticate_identity.
 
 
 @lru_cache

@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-import asyncio
-
 import structlog
 import uvicorn
 from fastmcp import FastMCP
+from starlette.applications import Starlette
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from starlette.routing import Mount
 
 from app.config import Settings
 from app.container import Container, set_container
@@ -90,6 +90,21 @@ def build_mcp_app(container: Container):
     return app
 
 
+def build_combined_app(container: Container) -> Starlette:
+    """One ASGI app on one port: chat MCP at ``/`` (``/mcp``), ops under ``/ops``.
+
+    Chat and ops share a host:port and differ only by path (chat ``/mcp`` with CHAT
+    identity, ops ``/ops/internal/...`` with OPS identity). The parent adopts the MCP app's
+    lifespan so the streamable-http session manager starts; ``/ops`` is matched first.
+    """
+    mcp_app = build_mcp_app(container)
+    ops_app = build_ops_app(container)
+    return Starlette(
+        routes=[Mount("/ops", app=ops_app), Mount("/", app=mcp_app)],
+        lifespan=mcp_app.lifespan,
+    )
+
+
 async def serve(settings: Settings) -> None:
     container = Container(settings)
     settings.require_server_tokens()
@@ -98,22 +113,12 @@ async def serve(settings: Settings) -> None:
     await provision(container.database, container.qdrant, settings)
     await container.startup(run_relay=True)
 
-    mcp_app = build_mcp_app(container)
-    ops_app = build_ops_app(container)
-
-    mcp_server = uvicorn.Server(
-        uvicorn.Config(mcp_app, host=settings.mcp_host, port=settings.mcp_port, log_config=None)
+    app = build_combined_app(container)
+    server = uvicorn.Server(
+        uvicorn.Config(app, host=settings.mcp_host, port=settings.mcp_port, log_config=None)
     )
-    ops_server = uvicorn.Server(
-        uvicorn.Config(ops_app, host=settings.ops_host, port=settings.ops_port, log_config=None)
-    )
-    log.info(
-        "server.serving",
-        domain=settings.domain_id,
-        mcp_port=settings.mcp_port,
-        ops_port=settings.ops_port,
-    )
+    log.info("server.serving", domain=settings.domain_id, port=settings.mcp_port)
     try:
-        await asyncio.gather(mcp_server.serve(), ops_server.serve())
+        await server.serve()
     finally:
         await container.shutdown()

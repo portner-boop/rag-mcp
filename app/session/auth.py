@@ -31,8 +31,9 @@ class TokenAuthenticator:
         self._ops = self._parse(ops_hashes)
         if not self._chat or not self._ops:
             raise ValueError("Both chat and ops token hashes are required")
-        if self._chat & self._ops:
-            raise ValueError("Chat and ops token hashes must not overlap (invariant 2)")
+        # A token MAY be shared between the chat and ops sets (single-password deployments).
+        # Each surface still authorizes against its own set, so a token only reaches a
+        # surface whose configured set contains it — segregation holds for distinct tokens.
 
     @staticmethod
     def _parse(raw: str) -> set[str]:
@@ -59,10 +60,24 @@ class TokenAuthenticator:
         raise UnauthorizedError("Invalid or revoked service token")
 
     def authenticate_identity(self, bearer: str | None, expected: Identity) -> Principal:
-        principal = self.authenticate(bearer)
-        if principal.identity is not expected:
+        """Authorize the token against the *expected* surface's set directly.
+
+        A token in the expected set is accepted (so a shared chat/ops token works on both
+        surfaces); a token that only belongs to the other surface is forbidden; anything
+        else is unauthorized.
+        """
+        if not bearer:
+            raise UnauthorizedError("Missing bearer token")
+        token = bearer[7:].strip() if bearer.lower().startswith("bearer ") else bearer.strip()
+        if not token:
+            raise UnauthorizedError("Empty bearer token")
+        candidate = hash_token(token)
+        allowed = self._chat if expected is Identity.CHAT else self._ops
+        if self._match(candidate, allowed):
+            return Principal(expected, scopes_for(expected))
+        if self._match(candidate, self._chat | self._ops):
             raise ForbiddenError(
                 "This token identity may not access this surface",
                 details={"expected_identity": expected.value},
             )
-        return principal
+        raise UnauthorizedError("Invalid or revoked service token")
