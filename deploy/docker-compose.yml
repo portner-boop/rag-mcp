@@ -1,0 +1,110 @@
+name: rag-hr
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: hr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: hr
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hr"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: rag
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "127.0.0.1:15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  migrate:
+    build:
+      context: ..
+    env_file: .env
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mcp-server:
+    build:
+      context: ..
+    restart: unless-stopped
+    command: ["rag-mcp", "serve"]
+    env_file: .env
+    environment:
+      RAG_MCP_MCP_HOST: 0.0.0.0
+      HTTPS_PROXY: http://xray:1081
+      NO_PROXY: localhost,127.0.0.1,postgres,qdrant,rabbitmq,minio,xray
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      default: {}
+      ragnet:
+        aliases: [rag-hr-mcp]
+
+  worker:
+    build:
+      context: ..
+    restart: unless-stopped
+    command: ["rag-mcp", "worker"]
+    env_file: .env
+    environment:
+      HTTPS_PROXY: http://xray:1081
+      NO_PROXY: localhost,127.0.0.1,postgres,qdrant,rabbitmq,minio,xray
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      default: {}
+      ragnet: {}
+
+networks:
+  ragnet:
+    external: true
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  rabbitmq_data:
